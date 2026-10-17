@@ -1,0 +1,27 @@
+{
+  "name": "guardiancare",
+  "private": true,
+  "version": "0.1.0",
+  "description": "GuardianCare - screenless smart wristband + nurse mobile app (DubHacks 2026)",
+  "workspaces": [
+    "apps/mobile",
+    "apps/api",
+    "packages/contracts"
+  ],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev:mobile": "npm run start -w @guardiancare/mobile",
+    "dev:api": "npm run dev -w @guardiancare/api",
+    "build:api": "npm run build -w @guardiancare/api",
+    "start:api": "npm run start -w @guardiancare/api",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "overrides": {
+    "react": "19.3.0"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

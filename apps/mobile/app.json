@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "GuardianCare",
+    "slug": "guardiancare",
+    "scheme": "guardiancare",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": ["expo-router"],
+    "experiments": { "typedRoutes": true },
+    "ios": { "supportsTablet": false, "bundleIdentifier": "com.guardiancare.app" },
+    "android": { "package": "com.guardiancare.app" }
+  }
+}
