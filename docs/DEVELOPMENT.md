@@ -3,7 +3,7 @@
 ## Setup
 ```bash
 git clone <repo-url> && cd guardiancare
-nvm use            # Node 22 (see .nvmrc); Expo SDK 57 needs >= 22.13
+nvm use            # Node 22 (see .nvmrc); Expo SDK 56 needs >= 22.13
 npm install        # one root package-lock.json
 cp apps/api/.env.example apps/api/.env       # fill values
 cp apps/mobile/.env.example apps/mobile/.env

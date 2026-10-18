@@ -15,7 +15,7 @@ Two devs, both using Claude Code, working in parallel on branches `feature/mobil
 npm workspaces monorepo: `apps/mobile` (Expo Router, TS), `apps/api` (Fastify, Zod, Supabase, ESM/NodeNext), `packages/contracts` (types only), `hardware/esp32`, `supabase/migrations`, `docs/`.
 
 ## Stack
-Expo SDK 57 (matches App Store Expo Go) / React Native / Expo Router / Supabase JS; Node 22, Fastify 5, Zod 4, Supabase Postgres + Realtime; Render (api), EAS (mobile). Arduino framework for firmware.
+Expo SDK 56 (matches team phones' Expo Go) / React Native / Expo Router / Supabase JS; Node 22, Fastify 5, Zod 4, Supabase Postgres + Realtime; Render (api), EAS (mobile). Arduino framework for firmware.
 
 ## Rules
 - Shared contracts: `packages/contracts` is types-only (import with `import type`). Change it only with both devs' agreement; update `docs/API_CONTRACT.md` in the same PR.
