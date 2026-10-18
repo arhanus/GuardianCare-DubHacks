@@ -12,9 +12,10 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowRight, Stethoscope, UserRound } from "lucide-react-native";
+import { ArrowRight, Stethoscope, UsersRound } from "lucide-react-native";
 import { useSession, type Role } from "../session";
 import { useScreenMotion } from "../motion";
+import { BackgroundPaths } from "../components/ui/background-paths";
 
 const palette = {
   background: "#090909",
@@ -30,7 +31,7 @@ export default function Welcome() {
   const { width } = useWindowDimensions();
   const desktop = width >= 720;
   const [register, setRegister] = useState(false);
-  const [role, setRole] = useState<Role>("nurse");
+  const [role, setRole] = useState<Role>("caregiver");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
@@ -48,12 +49,12 @@ export default function Welcome() {
       return;
     }
     setError("");
-    enterDemo({ name: name.trim() || (role === "nurse" ? "Nurse" : "Patient"), role });
+    enterDemo({ name: name.trim() || (role === "caregiver" ? "Caregiver" : "Family"), role });
   }
 
   function enterSample() {
     setError("");
-    enterDemo({ name: role === "nurse" ? "Nurse" : "Patient", role });
+    enterDemo({ name: role === "caregiver" ? "Caregiver" : "Family", role });
   }
 
   function toggleMode() {
@@ -73,6 +74,7 @@ export default function Welcome() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <BackgroundPaths />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         {desktop && renderDots("left")}
         {desktop && renderDots("right")}
@@ -91,13 +93,13 @@ export default function Welcome() {
             <Text accessibilityRole="header" style={styles.heading}>
               {register ? "Create your account" : "Sign in to GuardianCare"}
             </Text>
-            <Text style={styles.subtitle}>Hospital wristband monitoring.</Text>
+            <Text style={styles.subtitle}>Fall and heart alerts for care homes.</Text>
 
             <View style={styles.form}>
               <View style={styles.typeRow}>
                 {([
-                  { value: "nurse" as const, label: "I'm a nurse", Icon: Stethoscope },
-                  { value: "patient" as const, label: "I wear the wristband", Icon: UserRound },
+                  { value: "caregiver" as const, label: "I'm a caregiver", Icon: Stethoscope },
+                  { value: "family" as const, label: "I'm family", Icon: UsersRound },
                 ]).map(({ value, label, Icon }) => (
                   <Pressable
                     key={value}
@@ -184,8 +186,8 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, alignItems: "center", justifyContent: "center" },
   scrollDesktop: { paddingHorizontal: 22, paddingVertical: 28 },
   scrollMobile: { paddingVertical: 25 },
-  panel: { width: "100%", backgroundColor: palette.panel, paddingHorizontal: 28, paddingTop: 32, paddingBottom: 34, alignItems: "center" },
-  panelDesktop: { maxWidth: 695, borderWidth: 1, borderColor: "#252525", borderRadius: 3, paddingTop: 40, paddingBottom: 36, paddingHorizontal: 46 },
+  panel: { width: "100%", backgroundColor: "transparent", paddingHorizontal: 28, paddingTop: 32, paddingBottom: 34, alignItems: "center" },
+  panelDesktop: { maxWidth: 695, backgroundColor: "rgba(19,19,19,0.88)", borderWidth: 1, borderColor: "#252525", borderRadius: 3, paddingTop: 40, paddingBottom: 36, paddingHorizontal: 46 },
   mark: { width: 72, height: 72, borderRadius: 36, borderWidth: 1, borderColor: "#3A3A3A", alignItems: "center", justifyContent: "center", marginBottom: 26 },
   markText: { color: palette.text, fontSize: 25, fontWeight: "800", letterSpacing: -0.7 },
   heading: { color: palette.text, fontSize: 31, lineHeight: 38, fontWeight: "800", textAlign: "center", letterSpacing: -1.1 },

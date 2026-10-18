@@ -23,8 +23,14 @@ export interface MotionSample {
 export class MotionEngine {
   private prev = new Map<string, { x: number; y: number; z: number }>();
   private lastAlert = new Map<string, number>();
+  private tripped = new Map<string, boolean>();
 
   constructor(private rule: MotionRule) {}
+
+  /** Whether the latest snapshot crossed the threshold, even if the alert was suppressed by the cooldown. */
+  wasTripped(deviceId: string): boolean {
+    return this.tripped.get(deviceId) ?? false;
+  }
 
   ingest(deviceId: string, s: MotionSample): boolean {
     const a = s.accel;
@@ -37,6 +43,7 @@ export class MotionEngine {
       axisJump >= this.rule.axisDeltaG ||
       (s.peakJerkG ?? 0) >= this.rule.jerkG ||
       Math.max(s.peakAccelG ?? 0, magnitude) >= this.rule.impactG;
+    this.tripped.set(deviceId, tripped);
     if (!tripped) return false;
 
     const last = this.lastAlert.get(deviceId);

@@ -9,14 +9,21 @@ import { telemetrySchema } from "../schemas/telemetry.js";
 import type { HrEngine } from "../services/hr-engine.js";
 import type { LiveHub } from "../services/live-hub.js";
 import type { MotionEngine } from "../services/motion-engine.js";
-import type { ThresholdEngine } from "../services/threshold-engine.js";
+import type { TempBaselineEngine } from "../services/temp-baseline-engine.js";
+import type { FallEngine } from "../services/fall-engine.js";
+import type { WearEngine } from "../services/wear-engine.js";
 import type { Alert, DeviceRow, NewReading, Source, Store } from "../services/store.js";
 import { withAliases } from "./patients.js";
 
 export interface Engines {
+  /** Heart-rate warning (yellow). */
   hr: HrEngine;
-  temp: ThresholdEngine;
+  /** Heart-rate critical (red). */
+  hrCritical: HrEngine;
+  temp: TempBaselineEngine;
   motion: MotionEngine;
+  fall: FallEngine;
+  wear: WearEngine;
 }
 
 interface Deps {
@@ -77,6 +84,8 @@ export async function deviceRoutes(app: FastifyInstance, { store, config, engine
     device: DeviceRow & { patientId: string },
     input: Omit<NewReading, "deviceId" | "patientId">,
     peak: { accelG?: number | null; jerkG?: number | null } | null,
+    /** Optical sensor on skin? null = unknown (not reported). */
+    contact: boolean | null = null,
   ) {
     const { reading, created } = await store.insertReading({ ...input, deviceId: device.id, patientId: device.patientId });
     if (reading.deviceId !== device.id) {
@@ -93,33 +102,51 @@ export async function deviceRoutes(app: FastifyInstance, { store, config, engine
     const fresh = observedAt === null || Math.abs(receivedMs - Date.parse(observedAt)) <= skewMs;
     const base = { patientId: device.patientId, deviceId: device.id, source: input.source as Source };
 
-    const hr = engines.hr.ingest(device.id, {
-      atMs: receivedMs,
-      heartRateBpm: reading.heartRateBpm,
-      quality: reading.signalQuality,
-      fresh,
-    });
-    if (hr) {
-      const alert = await raise(store.createSensorAlert({ ...base, type: "HEART_RATE_ALERT", detail: hr }));
-      if (alert) app.log.info({ alertId: alert.id, detail: hr }, "demo HR threshold alert created");
+    if (engines.wear.ingest(device.id, receivedMs, contact)) {
+      const alert = await raise(store.createSensorAlert({ ...base, type: "DEVICE_ALERT", detail: "NOT_WORN", severity: "warning" }));
+      if (alert) app.log.info({ alertId: alert.id }, "wristband not-worn warning created");
     }
-
+    // Rules (DEMO-ONLY, see .env.example): critical = "urgent" (red, rings), warning = yellow.
+    // Motion first: it decides whether the wearer is resting, which gates the heart-rate rules.
+    let impact = false;
     if (fresh) {
-      const temp = engines.temp.ingest(device.id, receivedMs, reading.skinTemperatureC);
-      if (temp) {
-        const detail = temp === "HIGH" ? "TEMP_HIGH" : "TEMP_LOW";
-        const alert = await raise(store.createSensorAlert({ ...base, type: "TEMPERATURE_ALERT", detail }));
-        if (alert) app.log.info({ alertId: alert.id, detail }, "demo temperature alert created");
-      }
       const moved = engines.motion.ingest(device.id, {
         atMs: receivedMs,
         accel: reading.accelerationG,
         peakAccelG: peak?.accelG,
         peakJerkG: peak?.jerkG,
       });
+      impact = engines.motion.wasTripped(device.id);
       if (moved) {
-        const alert = await raise(store.createSensorAlert({ ...base, type: "MOTION_ALERT", detail: "SUDDEN_MOTION" }));
-        if (alert) app.log.info({ alertId: alert.id }, "demo sudden-motion alert created");
+        const alert = await raise(store.createSensorAlert({ ...base, type: "MOTION_ALERT", detail: "SUDDEN_MOTION", severity: "warning" }));
+        if (alert) app.log.info({ alertId: alert.id }, "demo sudden-motion warning created");
+      }
+      if (engines.fall.ingest(device.id, receivedMs, reading.accelerationG, impact)) {
+        const alert = await raise(store.createSensorAlert({ ...base, type: "MOTION_ALERT", detail: "FALL", severity: "urgent" }));
+        if (alert) app.log.info({ alertId: alert.id }, "demo fall alert created (impact + stillness)");
+      }
+    }
+    const resting = engines.fall.resting(device.id, receivedMs);
+
+    const hrSample = { atMs: receivedMs, heartRateBpm: reading.heartRateBpm, quality: reading.signalQuality, fresh, resting };
+    const critical = engines.hrCritical.ingest(device.id, hrSample);
+    // The warning rule only covers the band between the two ranges; beyond it the critical rule decides.
+    const bpm = reading.heartRateBpm;
+    const beyondCritical = bpm !== null && (bpm < config.DEMO_HR_CRITICAL_LOW_BPM || bpm > config.DEMO_HR_CRITICAL_HIGH_BPM);
+    const warning = engines.hr.ingest(device.id, beyondCritical ? { ...hrSample, heartRateBpm: null } : hrSample);
+    const hr = critical ?? warning;
+    if (hr) {
+      const severity = critical ? "urgent" : "warning";
+      const alert = await raise(store.createSensorAlert({ ...base, type: "HEART_RATE_ALERT", detail: hr, severity }));
+      if (alert) app.log.info({ alertId: alert.id, detail: hr, severity }, "demo HR alert created");
+    }
+
+    if (fresh) {
+      const temp = engines.temp.ingest(device.id, receivedMs, reading.skinTemperatureC);
+      if (temp) {
+        const detail = temp === "HIGH" ? "TEMP_HIGH" : "TEMP_LOW";
+        const alert = await raise(store.createSensorAlert({ ...base, type: "TEMPERATURE_ALERT", detail, severity: "warning" }));
+        if (alert) app.log.info({ alertId: alert.id, detail }, "demo temperature warning created");
       }
     }
     return { reading, created };
@@ -220,6 +247,7 @@ export async function deviceRoutes(app: FastifyInstance, { store, config, engine
         observedAt: null, // the wristband has no real-time clock; server time is authoritative
       },
       t.imu?.peak ?? null,
+      t.heart?.status ? t.heart.status !== "NO_CONTACT" : null,
     );
     return reply.status(201).send({ ok: true, receivedAt: reading.receivedAt });
   });

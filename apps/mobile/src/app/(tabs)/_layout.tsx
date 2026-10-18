@@ -5,19 +5,23 @@ import { Tabs, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { House, Bell, UserRound, Siren } from "lucide-react-native";
 import { useAlerts } from "../../store";
-import { needsResponse } from "../../event-policy";
+import { useSession } from "../../session";
+import { isWarning, needsResponse } from "../../event-policy";
 import { useReducedMotion } from "../../motion";
 
 type BarProps = { routes: { key: string; name: string }[]; index: number };
 function NavigationBar({ routes, index }: BarProps) {
   const { alerts } = useAlerts();
+  const family = useSession().session?.role === "family";
   const tabRefs = useRef<(View | null)[]>([]);
   const hrefOf = (name: string) => name === "index" ? "/" : name === "profile" ? "/profile" : name === "sos" ? "/sos" : "/alerts";
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
   const [position] = useState(() => new Animated.Value(index));
-  const count = needsResponse(alerts).length;
+  const waiting = needsResponse(alerts);
+  const count = waiting.length;
+  const onlyWarnings = count > 0 && waiting.every(isWarning);
   useEffect(() => {
     if (reduced) { position.setValue(index); return; }
     const animation = Animated.spring(position, { toValue: index, damping: 28, stiffness: 280, mass: 1, useNativeDriver: Platform.OS !== "web", overshootClamping: true });
@@ -32,7 +36,7 @@ function NavigationBar({ routes, index }: BarProps) {
         const isHome = route.name === "index";
         const isProfile = route.name === "profile";
         const isSOS = route.name === "sos";
-        const title = isSOS ? "SOS" : isHome ? "Home" : isProfile ? "Profile" : "Alerts";
+        const title = isSOS ? "Alarm" : isHome ? (family ? "Home" : "Residents") : isProfile ? "Profile" : family ? "Events" : "Alerts";
         const Icon = isSOS ? Siren : isHome ? House : isProfile ? UserRound : Bell;
         return <Pressable key={route.key} ref={node => { tabRefs.current[routeIndex] = node; }} tabIndex={active ? 0 : -1}
           onKeyDown={event => {
@@ -44,17 +48,22 @@ function NavigationBar({ routes, index }: BarProps) {
           style={({ pressed }) => [styles.item, pressed && { opacity: 0.65 }]}>
           <Icon size={21} strokeWidth={2} color={active ? "#151515" : "#737373"} />
           <Text maxFontSizeMultiplier={1.5} numberOfLines={1} style={[styles.label, { color: active ? "#151515" : "#737373" }]}>{title}</Text>
-          {route.name === "alerts" && count > 0 && <View style={styles.dot} />}
+          {route.name === "alerts" && count > 0 && <View style={[styles.dot, onlyWarnings && { backgroundColor: "#D29B00" }]} />}
         </Pressable>;
       })}
     </View></View>
   </View>;
 }
 export default function TabLayout() {
-  return <Tabs screenOptions={{ headerShown: false, tabBarHideOnKeyboard: true }} tabBar={({ state }) => <NavigationBar routes={state.routes} index={state.index} />}>
-    <Tabs.Screen name="index" options={{ title: "Home" }} />
+  const family = useSession().session?.role === "family";
+  // Family has no alarm tab: hidden from the bar (and from navigation) with href: null.
+  return <Tabs screenOptions={{ headerShown: false, tabBarHideOnKeyboard: true }} tabBar={({ state, descriptors }) => {
+    const routes = state.routes.filter(route => (descriptors[route.key]?.options as { href?: unknown } | undefined)?.href !== null);
+    return <NavigationBar routes={routes} index={Math.max(0, routes.findIndex(route => route.key === state.routes[state.index]?.key))} />;
+  }}>
+    <Tabs.Screen name="index" options={{ title: "Residents" }} />
     <Tabs.Screen name="alerts" options={{ title: "Alerts" }} />
-    <Tabs.Screen name="sos" options={{ title: "SOS" }} />
+    <Tabs.Screen name="sos" options={{ title: "Alarm", href: family ? null : undefined }} />
     <Tabs.Screen name="profile" options={{ title: "Profile" }} />
   </Tabs>;
 }

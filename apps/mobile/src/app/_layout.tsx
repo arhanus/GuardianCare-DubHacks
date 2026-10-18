@@ -6,12 +6,13 @@ import { MotionProvider } from "../motion";
 import { SOSProvider } from "../sos";
 import { LiveProvider } from "../live";
 import { ServerProvider } from "../server-url";
+import { ResidentProfilesProvider } from "../resident-profiles";
 import "../global.css";
 export default function Layout() {
   return (
-    <MotionProvider><ServerProvider><SessionProvider><LiveProvider>
+    <MotionProvider><ServerProvider><ResidentProfilesProvider><SessionProvider><LiveProvider>
       <Navigation />
-    </LiveProvider></SessionProvider></ServerProvider></MotionProvider>
+    </LiveProvider></SessionProvider></ResidentProfilesProvider></ServerProvider></MotionProvider>
   );
 }
 function Navigation() {
@@ -34,12 +35,12 @@ function Navigation() {
         </Stack.Protected>
         <Stack.Protected guard={!!session}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="patient-editor" options={{ title: "Patient profile" }} />
+          <Stack.Screen name="patient-editor" options={{ title: "Resident profile" }} />
           <Stack.Screen name="subscription" options={{ title: "Manage subscription" }} />
           <Stack.Screen name="settings/[section]" options={{ title: "Account settings" }} />
           <Stack.Screen
             name="person/[id]"
-            options={{ title: "Patient profile" }}
+            options={{ title: "Resident profile" }}
           />
           <Stack.Screen
             name="incident/[id]"

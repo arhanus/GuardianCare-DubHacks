@@ -21,7 +21,7 @@ type Props = {
 
 /**
  * Editorial 2x2 care dashboard inspired by the supplied 21st.dev reference.
- * Counts are sourced from the live patient list; no trends or diagnostics are implied.
+ * Counts are sourced from the live resident list; no trends or diagnostics are implied.
  */
 export function CareDashboard({ connected, total, pending, unassigned, onAlerts }: Props) {
   const { width } = useWindowDimensions();
@@ -88,7 +88,7 @@ export function CareDashboard({ connected, total, pending, unassigned, onAlerts 
         
       </View>
 
-      {unassigned > 0 && <Text style={{ color: "#626262", fontSize: 14, marginBottom: 12 }}>{unassigned} {unassigned === 1 ? "patient" : "patients"} without a wristband</Text>}
+      {unassigned > 0 && <Text style={{ color: "#626262", fontSize: 14, marginBottom: 12 }}>{unassigned} {unassigned === 1 ? "resident" : "residents"} without a wristband</Text>}
       <View style={styles.grid}>
         {[0, 1].map(row => (
           <View key={row} style={styles.gridRow}>
@@ -148,7 +148,7 @@ export function CareDashboard({ connected, total, pending, unassigned, onAlerts 
         <View style={styles.ctaIcon}><Bell size={21} color="#171717" /></View>
         <View style={styles.ctaCopy}>
           <Text style={styles.ctaTitle}>{pending ? `${pending} ${pending === 1 ? "event awaits" : "events await"} review` : "No events awaiting review"}</Text>
-          <Text style={styles.ctaSubtitle}>Fictional patients · simulated events</Text>
+          <Text style={styles.ctaSubtitle}>Synthetic residents · live wristband</Text>
         </View>
         <View style={styles.ctaButton}><Text style={styles.ctaButtonText}>See all</Text><ArrowRight size={16} color="#FFFFFF" /></View>
       </Pressable>

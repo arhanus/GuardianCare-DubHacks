@@ -7,7 +7,7 @@ Auth: devices send `x-device-key: <DEVICE_API_KEY>`; mobile uses Supabase user J
 | Endpoint | Status |
 |---|---|
 | GET /api/health | **implemented** |
-| GET /api/patients, /api/patients/:id/readings, GET /api/alerts, PATCH /api/alerts/:id/acknowledge | **implemented** (see `apps/api/README.md`) |
+| GET /api/patients, /api/patients/:id/readings, GET /api/alerts, PATCH /api/alerts/:id/acknowledge, PATCH /api/alerts/:id/resolve | **implemented** (see `apps/api/README.md`) |
 | POST /api/devices/events, /api/devices/readings, /api/devices/heartbeat | **implemented** |
 | POST /api/telemetry, GET /api/live (WebSocket), POST /api/patients/:id/sos | **implemented** (below) |
 
@@ -62,12 +62,24 @@ Purpose: ESP32 firmware snapshot, once per second. Auth: device key via `x-devic
 Request is the firmware's nested JSON (`heart`, `optical`, `temperature`, `imu`, `device`); `deviceId` must equal the configured device. `imu.peak` = `{accelG, jerkG, gyroDps}` maxima since the previous snapshot. Sensors that are unavailable are `null`/`valid:false`; values outside storage bounds (HR 20-250, temp 20-45 C) are stored as `null` rather than rejecting the snapshot. `bpm` may be a float (rounded).
 `201 { "ok": true, "receivedAt": "..." }`; `400` malformed; `401` bad key; `403` wrong deviceId; `409` device unassigned.
 
+## PATCH /api/alerts/:id/resolve — implemented
+Closes an event with a caregiver note (care-home check record). Auth: nurse (demo nurse id when `REQUIRE_NURSE_AUTH=false`).
+Request (`ResolveAlertRequest`): `{ "note": "Checked, no injury" }` (1-500 chars, trimmed).
+`200` -> `Alert` with `status: "resolved"`, `resolvedAt`, `resolvedBy`, `resolutionNote` (an `open` alert is acknowledged by the same call). Idempotent: an already resolved alert is returned unchanged. `400` empty note, `404` unknown alert. Pushed as `alert_updated` over `/api/live`.
+
 ## Alarm rules (demo-only thresholds, env-configurable, not clinical)
-Run on every new reading; each creates an `urgent` alert and pushes it over `/api/live`:
-- `MOTION_ALERT` / `SUDDEN_MOTION`: any axis changes >= `MOTION_AXIS_DELTA_G` (0.6 g) between snapshots, peak jerk >= `MOTION_JERK_G`, or acceleration >= `MOTION_IMPACT_G` (1.8 g). Cooldown `MOTION_COOLDOWN_SECONDS`.
-- `HEART_RATE_ALERT` / `HR_HIGH|HR_LOW`: `DEMO_HR_*`, sustained.
-- `TEMPERATURE_ALERT` / `TEMP_HIGH|TEMP_LOW`: outside `DEMO_TEMP_LOW_C`-`DEMO_TEMP_HIGH_C`, sustained `DEMO_TEMP_DURATION_SECONDS`.
-Alert `type`: `SOS | HEART_RATE_ALERT | MOTION_ALERT | TEMPERATURE_ALERT`; `source`: `device | simulation | app`.
+`severity`: `urgent` = critical (red; nurse phones ring until acknowledged), `warning` = yellow (listed, no ringing).
+
+| Sensor | Warning | Critical |
+|---|---|---|
+| Heart rate (`HEART_RATE_ALERT`, `HR_HIGH`/`HR_LOW`) | at rest, < `DEMO_HR_LOW_BPM` (50) or > `DEMO_HR_HIGH_BPM` (120) for `DEMO_HR_DURATION_SECONDS` (20 s) | at rest, < `DEMO_HR_CRITICAL_LOW_BPM` (45) or > `DEMO_HR_CRITICAL_HIGH_BPM` (150) for `DEMO_HR_CRITICAL_DURATION_SECONDS` (15 s) |
+| Skin temperature (`TEMPERATURE_ALERT`, `TEMP_HIGH`/`TEMP_LOW`) | `DEMO_TEMP_DELTA_C` (1 °C) away from the wearer's baseline (mean of the first `DEMO_TEMP_BASELINE_SAMPLES` readings) for `DEMO_TEMP_DURATION_SECONDS` (300 s) | never on its own |
+| Motion (`MOTION_ALERT`) | `SUDDEN_MOTION`: any axis changes >= `MOTION_AXIS_DELTA_G` (0.6 g) between snapshots, peak jerk >= `MOTION_JERK_G`, or acceleration >= `MOTION_IMPACT_G` (1.8 g) | `FALL`: such an impact followed by `FALL_STILL_SECONDS` (20 s) without movement |
+| Wristband (`DEVICE_ALERT`) | `NOT_WORN`: no skin contact for `NOT_WORN_SECONDS` (120 s); `OFFLINE`: no data for `OFFLINE_SECONDS` (120 s) | never |
+| SOS (`SOS`) | - | always critical |
+
+"At rest" = no movement (axis change >= `MOVE_DELTA_G`) for `REST_SECONDS` (10 s). Cooldowns per device and direction.
+Alert `type`: `SOS | HEART_RATE_ALERT | MOTION_ALERT | TEMPERATURE_ALERT`; `detail` adds `FALL`, `NOT_WORN`, `OFFLINE`; `type` adds `DEVICE_ALERT`; `source`: `device | simulation | app`.
 
 ## GET /api/live — implemented (WebSocket)
 Auth: `?token=<Supabase access token>` when `REQUIRE_NURSE_AUTH=true`; otherwise open. Server messages (`LiveMessage` in contracts): `hello`, `ping`, `reading` (`patientId`, `reading` incl. `motionG`), `alert`, `alert_updated`. Single API instance only.

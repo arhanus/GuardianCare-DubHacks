@@ -12,7 +12,10 @@ import { liveRoutes } from "./routes/live.js";
 import { HrEngine } from "./services/hr-engine.js";
 import { LiveHub } from "./services/live-hub.js";
 import { MotionEngine } from "./services/motion-engine.js";
-import { ThresholdEngine } from "./services/threshold-engine.js";
+import { TempBaselineEngine } from "./services/temp-baseline-engine.js";
+import { FallEngine } from "./services/fall-engine.js";
+import { WearEngine } from "./services/wear-engine.js";
+import { OfflineWatch } from "./services/offline-watch.js";
 import { createNurseVerifier, type NurseVerifier } from "./services/nurse-auth.js";
 import type { Store } from "./services/store.js";
 
@@ -57,9 +60,16 @@ export async function buildApp(opts: { store?: Store; config?: Env; verifier?: N
       minSamples: config.DEMO_HR_MIN_SAMPLES,
       cooldownMs: config.DEMO_HR_COOLDOWN_SECONDS * 1000,
     }),
-    temp: new ThresholdEngine({
-      low: config.DEMO_TEMP_LOW_C,
-      high: config.DEMO_TEMP_HIGH_C,
+    hrCritical: new HrEngine({
+      lowBpm: config.DEMO_HR_CRITICAL_LOW_BPM,
+      highBpm: config.DEMO_HR_CRITICAL_HIGH_BPM,
+      durationMs: config.DEMO_HR_CRITICAL_DURATION_SECONDS * 1000,
+      minSamples: config.DEMO_HR_MIN_SAMPLES,
+      cooldownMs: config.DEMO_HR_COOLDOWN_SECONDS * 1000,
+    }),
+    temp: new TempBaselineEngine({
+      baselineSamples: config.DEMO_TEMP_BASELINE_SAMPLES,
+      deltaC: config.DEMO_TEMP_DELTA_C,
       durationMs: config.DEMO_TEMP_DURATION_SECONDS * 1000,
       minSamples: config.DEMO_TEMP_MIN_SAMPLES,
       cooldownMs: config.DEMO_TEMP_COOLDOWN_SECONDS * 1000,
@@ -70,12 +80,32 @@ export async function buildApp(opts: { store?: Store; config?: Env; verifier?: N
       impactG: config.MOTION_IMPACT_G,
       cooldownMs: config.MOTION_COOLDOWN_SECONDS * 1000,
     }),
+    fall: new FallEngine({
+      moveDeltaG: config.MOVE_DELTA_G,
+      moveMagnitudeG: 0.3,
+      restMs: config.REST_SECONDS * 1000,
+      stillMs: config.FALL_STILL_SECONDS * 1000,
+      graceMs: 3000,
+      cooldownMs: config.MOTION_COOLDOWN_SECONDS * 1000,
+    }),
+    wear: new WearEngine({ notWornMs: config.NOT_WORN_SECONDS * 1000 }),
   };
+  const offlineWatch = new OfflineWatch({
+    store, hub, offlineMs: config.OFFLINE_SECONDS * 1000,
+    onError: (err) => app.log.error({ err }, "offline check failed"),
+  });
+  if (config.NODE_ENV !== "test") {
+    const timer = setInterval(() => void offlineWatch.check(Date.now()), 15_000);
+    timer.unref();
+    app.addHook("onClose", async () => clearInterval(timer));
+  }
   await app.register(websocket);
   await app.register(liveRoutes, { config, verifier, hub });
   await app.register(deviceRoutes, { store, config, engines, hub });
   await app.register(alertRoutes, { store, config, verifier, hub });
   await app.register(patientRoutes, { store, config, verifier, hub });
 
+  // Exposed for tests: run the offline check with a chosen clock.
+  app.decorate("checkOffline", (nowMs: number) => offlineWatch.check(nowMs));
   return app;
 }

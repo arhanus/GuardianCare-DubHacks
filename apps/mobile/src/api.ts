@@ -28,9 +28,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const getPatients = () => request<ApiPatient[]>("/api/patients");
-export const getAlerts = () => request<Alert[]>("/api/alerts?status=all&limit=50");
+export const getAlerts = () => request<Alert[]>("/api/alerts?status=all&limit=200");
 export const getReadings = (patientId: string, limit = 60) => request<LiveReading[]>(`/api/patients/${patientId}/readings?limit=${limit}`);
 export const acknowledgeAlert = (alertId: string) => request<Alert>(`/api/alerts/${alertId}/acknowledge`, { method: "PATCH", body: "{}" });
+export const resolveAlert = (alertId: string, note: string) => request<Alert>(`/api/alerts/${alertId}/resolve`, { method: "PATCH", body: JSON.stringify({ note }) });
 export const sendSOS = (patientId: string, eventId: string) => request<{ alert: Alert; duplicate: boolean }>(`/api/patients/${patientId}/sos`, { method: "POST", body: JSON.stringify({ eventId }) });
 
 /** ws:// (or wss://) URL of the live stream, derived from the API base URL. */

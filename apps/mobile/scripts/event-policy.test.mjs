@@ -19,10 +19,10 @@ test('status text and date label', () => {
  assert.doesNotMatch(eventDate({...event,recordedAt:'2026-10-17T12:00:00Z'}), /Test event/);
 });
 
-test('a patient only sees events about their own wristband', () => {
+test('family only sees events about their resident', () => {
  const events = [{...event,id:'mine',personId:'p-c'}, {...event,id:'other',personId:'p-a'}];
- assert.deepEqual(visibleEvents(events, 'patient', 'p-c').map(item => item.id), ['mine']);
- assert.equal(visibleEvents(events, 'nurse', 'p-c').length, 2);
+ assert.deepEqual(visibleEvents(events, 'family', 'p-c').map(item => item.id), ['mine']);
+ assert.equal(visibleEvents(events, 'caregiver', 'p-c').length, 2);
  assert.equal(visibleEvents(events, undefined, 'p-c').length, 0);
 });
 

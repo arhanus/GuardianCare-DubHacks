@@ -10,7 +10,7 @@ import { useScreenMotion } from "../motion";
 const basePlans = [
   { id: "plus", title: "Plus", monthly: 10, yearly: 100, caption: "For you and the people closest to you.", Icon: UserRound,
     features: ["A personal care space", "Wearable connection overview", "Sensor history and trends", "Assistance event overview"] },
-  { id: "pro", title: "Pro", monthly: 100, yearly: 1000, caption: "Advanced care for individuals and hospital teams.", Icon: UsersRound,
+  { id: "pro", title: "Pro", monthly: 100, yearly: 1000, caption: "Advanced care for families and care homes.", Icon: UsersRound,
     features: ["A shared care dashboard", "People and device overview", "Assistance event coordination", "Organization care profiles"] },
 ] as const;
 
@@ -19,7 +19,7 @@ export default function Subscription() {
   const { width, height, fontScale } = useWindowDimensions();
   const inlineCheckout = height < 600 || fontScale > 1.3;
   const entrance = useScreenMotion();
-  const organization = session?.role === "nurse";
+  const organization = session?.role === "caregiver";
   const plans = basePlans.map(plan => plan.id === "pro" && !organization
     ? { ...plan, monthly: 30, yearly: 300 }
     : plan);
@@ -48,7 +48,7 @@ export default function Subscription() {
         <View style={styles.hero}>
           <Text style={styles.eyebrow}>GUARDIANCARE SUBSCRIPTIONS</Text>
           <Text accessibilityRole="header" style={styles.title}>Your subscription.</Text>
-          <Text style={styles.subtitle}>{organization ? "Pro for your hospital and care team." : "Two plans for you. Plus for everyday essentials. Pro for a deeper view of your day."}</Text>
+          <Text style={styles.subtitle}>{organization ? "Pro for your care home." : "Two plans for you. Plus for everyday essentials. Pro for a deeper view of your day."}</Text>
           <View style={styles.billing}>
             {[false, true].map(annual => <Pressable key={String(annual)} accessibilityRole="button"
               accessibilityLabel={annual ? "Yearly billing" : "Monthly billing"} accessibilityState={{ selected: yearly === annual }}

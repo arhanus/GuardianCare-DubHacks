@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { AppState } from "react-native";
 import type { Alert, LiveMessage, LiveReading } from "@guardiancare/contracts";
-import { acknowledgeAlert, getAlerts, getPatients, getReadings, liveUrl, sendSOS, type ApiPatient } from "./api";
+import { acknowledgeAlert, getAlerts, getPatients, getReadings, liveUrl, resolveAlert, type ApiPatient } from "./api";
 import { appendReading } from "./live-policy";
 import { useSession } from "./session";
 import { useServerUrl } from "./server-url";
@@ -20,7 +20,8 @@ type Live = {
   /** Load and keep fetching the reading history of a patient while a screen shows it. Returns a release function. */
   watch: (patientId: string) => () => void;
   acknowledge: (alertId: string) => Promise<void>;
-  sos: (patientId: string) => Promise<void>;
+  /** Close an event for every phone, with the caregiver's check note. */
+  resolve: (alertId: string, note: string) => Promise<void>;
 };
 
 const LiveContext = createContext<Live | null>(null);
@@ -45,7 +46,6 @@ function LiveSession({ enabled, children }: { enabled: boolean; children: ReactN
   const [readings, setReadings] = useState<Record<string, LiveReading[]>>({});
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const watched = useRef(new Map<string, number>());
-  const sosId = useRef<string | null>(null);
 
   const loadHistory = useCallback(async (ids: string[]) => {
     const history = await Promise.all(ids.map(async id => [id, await getReadings(id).catch(() => [])] as const));
@@ -133,15 +133,12 @@ function LiveSession({ enabled, children }: { enabled: boolean; children: ReactN
     setAlerts(current => upsert(current, updated));
   }, []);
 
-  // One id per attempt: a retry after a timeout reuses it, so the server never creates a duplicate SOS.
-  const sos = useCallback(async (patientId: string) => {
-    sosId.current ??= `app-sos-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const { alert } = await sendSOS(patientId, sosId.current);
-    sosId.current = null;
-    setAlerts(current => upsert(current, alert));
+  const resolve = useCallback(async (alertId: string, note: string) => {
+    const updated = await resolveAlert(alertId, note);
+    setAlerts(current => upsert(current, updated));
   }, []);
 
-  return <LiveContext.Provider value={{ connected, loaded, error, now, patients, readings, alerts, refresh, watch, acknowledge, sos }}>{children}</LiveContext.Provider>;
+  return <LiveContext.Provider value={{ connected, loaded, error, now, patients, readings, alerts, refresh, watch, acknowledge, resolve }}>{children}</LiveContext.Provider>;
 }
 
 export function useLive() {

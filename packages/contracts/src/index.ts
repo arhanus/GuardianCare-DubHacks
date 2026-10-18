@@ -49,8 +49,8 @@ export interface DeviceEvent {
   timestamp: IsoTimestamp;
 }
 
-export type AlertType = "SOS" | "HEART_RATE_ALERT" | "MOTION_ALERT" | "TEMPERATURE_ALERT";
-export type AlertDetail = "HR_HIGH" | "HR_LOW" | "SUDDEN_MOTION" | "TEMP_HIGH" | "TEMP_LOW";
+export type AlertType = "SOS" | "HEART_RATE_ALERT" | "MOTION_ALERT" | "TEMPERATURE_ALERT" | "DEVICE_ALERT";
+export type AlertDetail = "HR_HIGH" | "HR_LOW" | "SUDDEN_MOTION" | "FALL" | "TEMP_HIGH" | "TEMP_LOW" | "NOT_WORN" | "OFFLINE";
 
 export type AlertStatus = "open" | "acknowledged" | "resolved";
 
@@ -62,7 +62,7 @@ export interface Alert {
   type: AlertType;
   /** Which rule tripped, for sensor alerts; null for SOS. */
   detail?: AlertDetail | null;
-  /** SOS/motion/temperature/heart-rate alerts are all "urgent": the app rings until acknowledged. */
+  /** "urgent" = critical: red, the nurse app rings until acknowledged. "warning" = yellow, no ringing. */
   severity?: "urgent" | "warning";
   /** "app" = SOS pressed in the mobile app. */
   source?: "device" | "simulation" | "app";
@@ -70,6 +70,15 @@ export interface Alert {
   createdAt: IsoTimestamp;
   acknowledgedAt: IsoTimestamp | null;
   acknowledgedBy: string | null;
+  /** Set when a caregiver closes the event with a note (PATCH /api/alerts/:id/resolve). */
+  resolvedAt?: IsoTimestamp | null;
+  resolvedBy?: string | null;
+  resolutionNote?: string | null;
+}
+
+export interface ResolveAlertRequest {
+  /** What the caregiver found/did, 1-500 characters. */
+  note: string;
 }
 
 export interface AcknowledgeAlertRequest {

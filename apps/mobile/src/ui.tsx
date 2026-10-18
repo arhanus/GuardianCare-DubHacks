@@ -3,7 +3,11 @@ import { Animated, RefreshControl, ScrollView, StyleSheet, Text, View, Pressable
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useScreenMotion, useValueMotion } from "./motion";
 import { useLive } from "./live";
+import { router } from "expo-router";
 import { useSession } from "./session";
+import { useAlerts } from "./store";
+import { escalation, waitLabel } from "./live-policy";
+import type { CareEvent } from "./event-policy";
 
 export const colors = {
   ink: "#171717",
@@ -16,6 +20,8 @@ export const colors = {
   surface: "#FFFFFF",
   soft: "#F2F3F0",
   greenSoft: "#EAF1ED",
+  amber: "#7A5200",
+  amberSoft: "#FFF4D6",
 };
 
 export function Screen({ children }: { children: React.ReactNode }) {
@@ -31,6 +37,7 @@ export function Screen({ children }: { children: React.ReactNode }) {
           <Text style={s.demo}>PROTOTYPE</Text>
         </View>
         <BackendBanner />
+        <EscalationBanner />
         {children}
         <Disclosure title="About this prototype"><Text style={s.label}>Values come live from a prototype wristband and are not a clinical measurement. Alarm thresholds are demo settings. Skin temperature is not core body temperature. Patients are synthetic. Sign-in and subscriptions are not connected to real accounts or payments.</Text></Disclosure>
       </ScrollView></Animated.View></KeyboardAvoidingView>
@@ -47,9 +54,14 @@ export function Heading({ title, subtitle }: { title: string; subtitle: string }
   );
 }
 
-export function Card({ children }: { children: React.ReactNode }) {
-  return <View style={s.card}>{children}</View>;
+export function Card({ children, tone }: { children: React.ReactNode; tone?: "warning" }) {
+  return <View style={[s.card, tone === "warning" && s.warningCard]}>{children}</View>;
 }
+
+/** Text colour for an event that still needs attention: yellow for warnings, red for critical. */
+export const toneOf = (event: CareEvent) => event.severity === "warning" ? s.warning : s.danger;
+/** Card tone for an open warning. */
+export const cardTone = (event: CareEvent) => event.severity === "warning" && event.status !== "closed" ? "warning" as const : undefined;
 
 export const s = StyleSheet.create({
   page: { paddingHorizontal: 22, paddingTop: 24, paddingBottom: 40, maxWidth: 700, width: "100%", alignSelf: "center", gap: 20 },
@@ -66,6 +78,11 @@ export const s = StyleSheet.create({
   avatar: { width: 46, height: 46, backgroundColor: "#F2F2F2", borderRadius: 24, alignItems: "center", justifyContent: "center" },
   badge: { color: colors.green, fontWeight: "700", fontSize: 12 },
   danger: { color: colors.red },
+  warning: { color: colors.amber },
+  escalation: { backgroundColor: colors.red, borderRadius: 16, padding: 16, gap: 4, minHeight: 64, justifyContent: "center" },
+  escalationTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
+  escalationText: { color: "#FFFFFF", fontSize: 15, lineHeight: 22 },
+  warningCard: { backgroundColor: colors.amberSoft, borderColor: "#F2D88A" },
   button: { backgroundColor: "#171717", padding: 17, borderRadius: 13, alignItems: "center", minHeight: 52 },
   buttonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
   choice: { flex: 1, minHeight: 52, padding: 14, borderRadius: 13, borderWidth: 1, borderColor: colors.line, backgroundColor: "#FFFFFF", justifyContent: "center" },
@@ -100,4 +117,20 @@ function BackendBanner() {
  </Card>;
  if (!live.connected) return <Card><Text accessibilityLiveRegion="polite" style={[s.label, s.danger]}>Reconnecting to live updates…</Text></Card>;
  return null;
+}
+
+/** A critical alarm that nobody accepted for 2+ minutes: shown on every caregiver screen until accepted. */
+function EscalationBanner() {
+ const { session } = useSession();
+ const live = useLive();
+ const { alerts, nameOf } = useAlerts();
+ if (session?.role !== "caregiver") return null;
+ const waiting = alerts.map(event => ({ event, wait: escalation(event, live.now) })).filter(item => item.wait?.escalated)
+  .sort((a, b) => (b.wait?.waitingMs ?? 0) - (a.wait?.waitingMs ?? 0));
+ const first = waiting[0];
+ if (!first?.wait) return null;
+ return <Action accessibilityRole="alert" accessibilityLabel={`Escalated: ${first.event.title} for ${nameOf(first.event.personId)} not accepted for ${waitLabel(first.wait.waitingMs)}`} onPress={() => router.push(`/incident/${first.event.id}`)} style={s.escalation}>
+  <Text style={s.escalationTitle}>ESCALATED · not accepted for {waitLabel(first.wait.waitingMs)}</Text>
+  <Text style={s.escalationText}>{nameOf(first.event.personId)} · {first.event.title}{waiting.length > 1 ? ` (+${waiting.length - 1} more)` : ""}. Tap to respond.</Text>
+ </Action>;
 }

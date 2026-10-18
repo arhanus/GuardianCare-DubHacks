@@ -24,6 +24,9 @@ export function createMemoryStore(deviceId = "guardian-001"): Store {
     createdAt: new Date().toISOString(),
     acknowledgedAt: null,
     acknowledgedBy: null,
+    resolvedAt: null,
+    resolvedBy: null,
+    resolutionNote: null,
     ...a,
   });
 
@@ -45,7 +48,7 @@ export function createMemoryStore(deviceId = "guardian-001"): Store {
       return { alert, created: true };
     },
     async createSensorAlert(input) {
-      const alert = newAlert({ ...input, severity: "urgent" });
+      const alert = newAlert(input);
       alerts.push(alert);
       return alert;
     },
@@ -56,6 +59,21 @@ export function createMemoryStore(deviceId = "guardian-001"): Store {
       a.status = "acknowledged";
       a.acknowledgedAt = new Date().toISOString();
       a.acknowledgedBy = userId;
+      return { alert: a, changed: true };
+    },
+    async resolveAlert(id, userId, note) {
+      const a = alerts.find((x) => x.id === id);
+      if (!a) return null;
+      if (a.status === "resolved") return { alert: a, changed: false };
+      const now = new Date().toISOString();
+      if (a.status === "open") {
+        a.acknowledgedAt = now;
+        a.acknowledgedBy = userId;
+      }
+      a.status = "resolved";
+      a.resolvedAt = now;
+      a.resolvedBy = userId;
+      a.resolutionNote = note;
       return { alert: a, changed: true };
     },
     async listAlerts({ status, limit }) {

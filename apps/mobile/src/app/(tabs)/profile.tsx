@@ -18,7 +18,7 @@ export default function Profile() {
   const { session, signOut, subscriptionPreference } = useSession();
   return <Screen>
     <Heading title="Your profile" subtitle="Your account and connection." />
-    <Card><View style={s.row}><View style={styles.avatar}><Text style={styles.initial}>{session?.name.charAt(0).toUpperCase()}</Text></View><View style={{ flex: 1, gap: 5 }}><Text style={s.title}>{session?.name}</Text><Text style={s.label}>{session?.role === "nurse" ? "Nurse · care team" : "Patient"}</Text></View></View></Card>
+    <Card><View style={s.row}><View style={styles.avatar}><Text style={styles.initial}>{session?.name.charAt(0).toUpperCase()}</Text></View><View style={{ flex: 1, gap: 5 }}><Text style={s.title}>{session?.name}</Text><Text style={s.label}>{session?.role === "caregiver" ? "Caregiver · care home team" : "Family"}</Text></View></View></Card>
     <Pressable accessibilityRole="button" accessibilityLabel="Manage subscription" onPress={() => router.push("/subscription")} style={({ pressed }) => [styles.subscription, pressed && styles.pressed]}>
       <CreditCard color="white" size={25} /><View style={{ flex: 1, gap: 5 }}><Text style={[s.title, { color: "white" }]}>Manage subscription</Text><Text style={styles.light}>{subscriptionPreference.plan === "pro" ? "Pro" : "Plus"} · {subscriptionPreference.yearly ? "Yearly" : "Monthly"} preference</Text><Text style={styles.light}>No payments are connected</Text></View><ChevronRight color="white" size={20} />
     </Pressable>

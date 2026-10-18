@@ -5,8 +5,10 @@ export type Source = "device" | "simulation" | "app";
 export type AlertSource = Source;
 export type SignalQuality = "good" | "poor" | "unknown";
 
-export type AlertType = "SOS" | "HEART_RATE_ALERT" | "MOTION_ALERT" | "TEMPERATURE_ALERT";
-export type AlertDetail = "HR_HIGH" | "HR_LOW" | "SUDDEN_MOTION" | "TEMP_HIGH" | "TEMP_LOW";
+export type AlertType = "SOS" | "HEART_RATE_ALERT" | "MOTION_ALERT" | "TEMPERATURE_ALERT" | "DEVICE_ALERT";
+export type AlertDetail = "HR_HIGH" | "HR_LOW" | "SUDDEN_MOTION" | "FALL" | "TEMP_HIGH" | "TEMP_LOW" | "NOT_WORN" | "OFFLINE";
+/** urgent = critical (red, rings until accepted); warning = yellow, does not ring. */
+export type Severity = "urgent" | "warning";
 
 export interface Alert {
   id: string;
@@ -16,12 +18,16 @@ export interface Alert {
   type: AlertType;
   /** For sensor alerts: which rule tripped. Additive field. */
   detail: AlertDetail | null;
-  severity: "urgent" | "warning";
+  severity: Severity;
   status: AlertStatus;
   source: Source;
   createdAt: string;
   acknowledgedAt: string | null;
   acknowledgedBy: string | null;
+  /** Set when a caregiver closes the event with a note. */
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  resolutionNote: string | null;
 }
 
 export interface Reading {
@@ -83,6 +89,7 @@ export interface Store {
     deviceId: string;
     type: Exclude<AlertType, "SOS">;
     detail: AlertDetail;
+    severity: Severity;
     source: Source;
   }): Promise<Alert>;
   /**
@@ -90,6 +97,11 @@ export interface Store {
    * this call performed the transition. null = no such alert.
    */
   acknowledgeAlert(id: string, userId: string): Promise<{ alert: Alert; changed: boolean } | null>;
+  /**
+   * open|acknowledged -> resolved with a note (an open alert is also marked acknowledged by the same user).
+   * `changed` is false when it was already resolved. null = no such alert.
+   */
+  resolveAlert(id: string, userId: string, note: string): Promise<{ alert: Alert; changed: boolean } | null>;
   listAlerts(opts: { status: AlertStatus | "all"; limit: number }): Promise<Alert[]>;
   listPatients(): Promise<PatientRow[]>;
   patientExists(id: string): Promise<boolean>;

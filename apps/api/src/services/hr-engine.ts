@@ -24,6 +24,8 @@ export interface HrSample {
   quality: "good" | "poor" | "unknown";
   /** False if observedAt was stale/future relative to server time. */
   fresh: boolean;
+  /** False while the wearer is moving: the rule only applies at rest. Omitted = treated as resting. */
+  resting?: boolean;
 }
 
 type Dir = "HR_HIGH" | "HR_LOW";
@@ -36,7 +38,7 @@ export class HrEngine {
 
   ingest(deviceId: string, s: HrSample): Dir | null {
     const hr = s.heartRateBpm;
-    if (hr === null || s.quality !== "good" || !s.fresh) {
+    if (hr === null || s.quality !== "good" || !s.fresh || s.resting === false) {
       this.streaks.delete(deviceId);
       return null;
     }

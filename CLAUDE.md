@@ -1,7 +1,7 @@
 # CLAUDE.md - GuardianCare
 
 ## Product
-Screenless ESP32-S3 wristband (MAX30102 heart rate, MPU6050 motion, optional TMP117, physical SOS button) sends events/readings over Wi-Fi to a Fastify backend. Nurses use an Expo React Native mobile app. Prototype for DubHacks 2026; NOT a clinically validated medical device. All patients are synthetic.
+Screenless ESP32-S3 wristband (MAX30102 heart rate, MPU6050 motion, optional TMP117, physical SOS button) sends events/readings over Wi-Fi to a Fastify backend. Care-home caregivers (and residents' families) use an Expo React Native mobile app: caregivers get the alarm, families follow one resident. Target setting: nursing homes (falls and cardiac events noticed late). Prototype for DubHacks 2026; NOT a clinically validated medical device. All patients are synthetic.
 
 **Mobile-only UI. No web frontend or dashboard. The wristband has no display.**
 First milestone: physical SOS -> mobile alert.

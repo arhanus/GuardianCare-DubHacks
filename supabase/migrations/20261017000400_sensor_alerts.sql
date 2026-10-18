@@ -9,7 +9,9 @@ begin
     join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
     where c.contype = 'c'
       and ((c.conrelid = 'public.alerts'::regclass and a.attname in ('type','detail','source'))
-        or (c.conrelid = 'public.sensor_readings'::regclass and a.attname = 'source'))%s drop constraint %I', r.tbl, r.conname);
+        or (c.conrelid = 'public.sensor_readings'::regclass and a.attname = 'source'))
+  loop
+    execute format('alter table %s drop constraint %I', r.tbl, r.conname);
   end loop;
 end $$;
 

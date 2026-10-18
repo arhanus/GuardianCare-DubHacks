@@ -4,27 +4,23 @@ import { router } from "expo-router";
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useSession } from "./session";
 import { useAlerts } from "./store";
-import { ApiError } from "./api";
 import { useLive } from "./live";
-import { RING_LOOKBACK_MS, ringingEvents } from "./live-policy";
-import { DEMO_PATIENT_ID } from "../constants/config";
+import { RING_LOOKBACK_MS, escalation, ringingEvents } from "./live-policy";
 
 import { rememberSOS } from "./sos-policy";
+import { isWarning } from "./event-policy";
 
 type Signal = { id: string; personId: string; receivedAt: string; simulation: boolean };
 const SOSContext = createContext<{
   signal: Signal | null; playing: boolean; audioReady: boolean; error: string;
   startAlarm: () => void; stopAlarm: () => void;
-  simulateSOS: (personId: string) => void; dismissSignal: () => void; acceptSignal: () => void;
-  /** Real SOS from this phone (patient role): every nurse phone rings. Resolves true when the server accepted it. */
-  sendSOS: () => Promise<boolean>; sending: boolean;
+  simulateSOS: (personId: string) => void; acceptSignal: () => void;
 } | null>(null);
 
 export function SOSProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
-  const { addTest, respond, close, alerts, people } = useAlerts();
+  const { addTest, respond, alerts, people } = useAlerts();
   const live = useLive();
-  const [sending, setSending] = useState(false);
   // Fixed at sign-in (this provider remounts per role). Alerts created before it are history: listed, but silent.
   const [ringSince] = useState(() => Date.now() - RING_LOOKBACK_MS);
   const [appActive, setAppActive] = useState(AppState.currentState === "active");
@@ -34,6 +30,7 @@ export function SOSProvider({ children }: { children: ReactNode }) {
   const [signal, setSignal] = useState<Signal | null>(null);
   const [error, setError] = useState("");
   const seen = useRef(new Set<string>());
+  const warned = useRef(new Set<string>());
   useEffect(() => {
     let mounted = true;
     void setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false, allowsRecording: false, interruptionMode: "doNotMix", shouldRouteThroughEarpiece: false })
@@ -56,7 +53,7 @@ export function SOSProvider({ children }: { children: ReactNode }) {
   }, [player, audioModeReady, playback.isLoaded]);
   // Test alarm: rings on this phone only, nothing is sent to the server.
   const simulateSOS = (personId: string) => {
-    if (session?.role !== "nurse" || !people.some(person => person.id === personId)) return;
+    if (session?.role !== "caregiver" || !people.some(person => person.id === personId)) return;
     const id = `test-${Date.now()}`;
     if (!rememberSOS(seen.current, id)) return;
     setSignal({ id, personId, receivedAt: new Date().toISOString(), simulation: true });
@@ -68,9 +65,9 @@ export function SOSProvider({ children }: { children: ReactNode }) {
     if (signal && alerts.find(event => event.id === signal.id)?.status !== "received") player.pause();
   }, [alerts, signal, player]);
   // (a remote signal only exists while its alert is unanswered, so nothing to pause for it)
-  // Doorbell: ring while ANY live alert is still waiting for a nurse. Only acknowledging silences it, and
-  // it restarts if the app comes back to the foreground. A patient's own phone does not ring.
-  const ringing = session?.role === "nurse" ? ringingEvents(alerts, ringSince) : [];
+  // Doorbell: ring while ANY live alert is still waiting for a caregiver. Only acknowledging silences it, and
+  // it restarts if the app comes back to the foreground. Family phones do not ring.
+  const ringing = session?.role === "caregiver" ? ringingEvents(alerts, ringSince) : [];
   const ringKey = ringing.map(event => event.id).join(",");
   const target = ringing[0];
   const targetId = target?.id;
@@ -92,33 +89,33 @@ export function SOSProvider({ children }: { children: ReactNode }) {
     if (appActive && audioModeReady && playback.isLoaded && !playback.playing) ring();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ringKey, appActive, audioModeReady, playback.isLoaded, playback.playing]);
+  // Warnings (yellow) never ring: a short double vibration once per new warning, then they wait in Alerts.
+  const warningKey = session?.role === "caregiver"
+    ? alerts.filter(event => event.remote && isWarning(event) && event.status === "received" && Date.parse(event.recordedAt ?? "") >= ringSince).map(event => event.id).join(",")
+    : "";
+  useEffect(() => {
+    if (!warningKey) return;
+    let fresh = false;
+    for (const id of warningKey.split(",")) if (rememberSOS(warned.current, id)) fresh = true;
+    if (fresh) Vibration.vibrate([0, 250, 150, 250]);
+  }, [warningKey]);
   // The alert that was ringing got accepted (here or on another phone): stop the sound.
   useEffect(() => {
     if (!targetId && !signal) player.pause();
   }, [targetId, signal, player]);
+  // Nobody accepted a critical alarm for ESCALATE_AFTER_MS: vibrate continuously instead of in pulses.
+  const escalated = ringing.some(event => escalation(event, live.now)?.escalated);
   useEffect(() => {
     if (!playback.playing) return;
+    if (escalated) { Vibration.vibrate([0, 800, 200], true); return () => Vibration.cancel(); }
     Vibration.vibrate(600);
     const timer = setInterval(() => Vibration.vibrate(600), 1200);
     return () => { clearInterval(timer); Vibration.cancel(); };
-  }, [playback.playing]);
-  const sendSOS = async () => {
-    setSending(true); setError("");
-    try { await live.sos(DEMO_PATIENT_ID); return true; }
-    catch (err) {
-      const status = err instanceof ApiError ? err.status : 0;
-      setError(status === 409 ? "No wristband is assigned to this patient yet, so the SOS was not sent. Call for help directly."
-        : status === 404 ? "This patient was not found on the server, so the SOS was not sent. Call for help directly."
-        : "SOS could not reach the server. Try again, or call for help directly.");
-      return false;
-    }
-    finally { setSending(false); }
-  };
+  }, [playback.playing, escalated]);
   return <SOSContext.Provider value={{ signal: activeSignal, playing: playback.playing,
     audioReady: audioModeReady && playback.isLoaded, error: error || playback.error || "",
-    startAlarm, stopAlarm, simulateSOS, sendSOS, sending,
+    startAlarm, stopAlarm, simulateSOS,
     acceptSignal: () => { stopAlarm(); if (activeSignal) respond(activeSignal.id); },
-    dismissSignal: () => { stopAlarm(); if (activeSignal) close(activeSignal.id); setSignal(null); setError(""); },
   }}>{children}</SOSContext.Provider>;
 }
 export function useSOS() {

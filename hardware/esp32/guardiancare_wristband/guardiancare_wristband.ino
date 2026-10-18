@@ -13,6 +13,9 @@
     SparkFun MAX3010x Sensor Library (MAX30105.h)
     OneWire
     DallasTemperature
+    (WiFi / HTTPClient come with the ESP32 core)
+
+  Backend: copy secrets.example.h to secrets.h and fill in WiFi, SERVER_URL, API_KEY.
 
   Commands in Serial Monitor:
     1 = start real RED/IR CSV recording
@@ -38,6 +41,9 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <math.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include "secrets.h"  // WIFI_SSID, WIFI_PASSWORD, SERVER_URL, API_KEY (untracked)
 
 // -------------------- Hardware --------------------
 constexpr int SDA_PIN = 8;
@@ -211,8 +217,8 @@ void updateIMU() {
   const float jerk = fabsf(x - ax) + fabsf(y - ay) + fabsf(z - az);
   const float gyroMagnitude = fmaxf(fabsf(rx),
                                fmaxf(fabsf(ry), fabsf(rz)));
-  if (jerk > 0.11f || gyroMagnitude > 35.0f)
-    motionBlockUntilMs = now + 5500;
+  if (jerk > 0.18f || gyroMagnitude > 50.0f)
+    motionBlockUntilMs = now + 1500;
 
   ax = x; ay = y; az = z;
   gx = rx; gy = ry; gz = rz;
@@ -403,7 +409,7 @@ void updateHeartRate() {
     return;
   }
   const uint32_t now = millis();
-  if ((uint32_t)(now - lastHeartUpdateMs) < 3000UL) return;
+  if ((uint32_t)(now - lastHeartUpdateMs) < 1000UL) return;
   lastHeartUpdateMs = now;
   heartValid = false;
   heartStatus = "WARMUP";
@@ -426,8 +432,8 @@ void updateHeartRate() {
   }
 
   const float analysisRate = opticalSampleRate / (float)DOWNSAMPLE;
-  uint16_t length = (uint16_t)(analysisRate * 10.0f + 0.5f);
-  if (length < 200) length = 200;
+  uint16_t length = (uint16_t)(analysisRate * 7.0f + 0.5f);
+  if (length < 150) length = 150;
   if (length > ANALYSIS_CAPACITY) length = ANALYSIS_CAPACITY;
   if (historyCount < length) return;
 
@@ -522,7 +528,7 @@ void updateHeartRate() {
   }
 
   if (heartBPM > 0.0f && fabsf(candidate - heartBPM) < 18.0f)
-    heartBPM = 0.55f * heartBPM + 0.45f * candidate;
+    heartBPM = 0.35f * heartBPM + 0.65f * candidate;
   else
     heartBPM = candidate;
   heartValid = true;
@@ -597,6 +603,82 @@ void handleCommands() {
   }
 }
 
+// -------------------- Backend telemetry --------------------
+// One JSON snapshot per second to SERVER_URL (POST /api/telemetry). HTTP runs in its own task on
+// core 0, so loop() and the PPG FIFO polling on core 1 are never blocked by the network.
+const char *DEVICE_ID = "guardian-001";  // must match DEVICE_ID in apps/api/.env
+constexpr uint32_t SEND_INTERVAL_MS = 1000;
+constexpr uint16_t HTTP_TIMEOUT_MS = 800;
+
+struct Telemetry {
+  uint32_t seq, uptimeMs;
+  bool heartValid; float heartBPM; const char *heartStatus;
+  bool temperatureValid; float temperatureC;
+  bool imuValid; float ax, ay, az, gx, gy, gz;
+};
+QueueHandle_t telemetryQueue = nullptr;
+uint32_t telemetrySeq = 0;
+uint32_t lastSendMs = 0;
+volatile int lastHttpCode = 0;
+volatile uint32_t sentOk = 0, sentFailed = 0;
+
+void senderTask(void *) {
+  Telemetry t;
+  static char body[512];
+  static HTTPClient http;  // kept alive: one TCP connection instead of a new one per second
+  http.setReuse(true);
+  for (;;) {
+    if (xQueueReceive(telemetryQueue, &t, portMAX_DELAY) != pdTRUE) continue;
+    if (WiFi.status() != WL_CONNECTED) { lastHttpCode = -100; sentFailed++; continue; }
+    char bpm[16] = "null", temp[16] = "null", imu[160] = "null";
+    if (t.heartValid) snprintf(bpm, sizeof(bpm), "%.1f", t.heartBPM);
+    if (t.temperatureValid) snprintf(temp, sizeof(temp), "%.2f", t.temperatureC);
+    if (t.imuValid) snprintf(imu, sizeof(imu),
+        "{\"x\":%.3f,\"y\":%.3f,\"z\":%.3f}", t.ax, t.ay, t.az);
+    char gyro[96] = "null";
+    if (t.imuValid) snprintf(gyro, sizeof(gyro),
+        "{\"x\":%.2f,\"y\":%.2f,\"z\":%.2f}", t.gx, t.gy, t.gz);
+    snprintf(body, sizeof(body),
+        "{\"deviceId\":\"%s\",\"firmware\":\"V3\",\"seq\":%lu,\"uptimeMs\":%lu,"
+        "\"heart\":{\"valid\":%s,\"bpm\":%s,\"status\":\"%s\"},"
+        "\"temperature\":{\"valid\":%s,\"celsius\":%s},"
+        "\"imu\":{\"valid\":%s,\"accel\":%s,\"gyro\":%s},"
+        "\"device\":{\"wifiRssi\":%ld}}",
+        DEVICE_ID, (unsigned long)t.seq, (unsigned long)t.uptimeMs,
+        t.heartValid ? "true" : "false", bpm, t.heartStatus,
+        t.temperatureValid ? "true" : "false", temp,
+        t.imuValid ? "true" : "false", imu, gyro, (long)WiFi.RSSI());
+    http.setConnectTimeout(HTTP_TIMEOUT_MS);
+    http.setTimeout(HTTP_TIMEOUT_MS);
+    if (!http.begin(SERVER_URL)) { lastHttpCode = -102; sentFailed++; continue; }
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("x-device-key", API_KEY);
+    const int code = http.POST((uint8_t *)body, strlen(body));
+    http.end();
+    lastHttpCode = code;
+    if (code >= 200 && code < 300) sentOk++; else sentFailed++;
+  }
+}
+
+void queueTelemetry() {
+  if (!telemetryQueue) return;
+  Telemetry t = { telemetrySeq++, millis(), heartValid, heartBPM, heartStatus,
+                  temperatureValid, temperatureC, imuValid, ax, ay, az, gx, gy, gz };
+  xQueueOverwrite(telemetryQueue, &t);  // queue of 1: an unsent older snapshot is replaced
+}
+
+void startNetwork() {
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.setSleep(false);  // modem sleep pulses the supply current; keep it steady for the PPG
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.setTxPower(WIFI_POWER_8_5dBm);  // lower TX current peaks; enough for a nearby hotspot
+  Serial0.print("# WIFI CONNECTING TO "); Serial0.println(WIFI_SSID);
+  Serial0.print("# BACKEND: "); Serial0.println(SERVER_URL);
+  telemetryQueue = xQueueCreate(1, sizeof(Telemetry));
+  if (telemetryQueue) xTaskCreatePinnedToCore(senderTask, "telemetry", 8192, nullptr, 1, nullptr, 0);
+}
+
 // -------------------- Monitor output --------------------
 void printStatus() {
   // Lines prefixed '#' are ignored by the existing Mac record.py parser.
@@ -632,7 +714,11 @@ void printStatus() {
   Serial0.print(" | PPG_SAMPLES:"); Serial0.print(totalSamples);
   Serial0.print(" | FIFO_WR:"); Serial0.print(lastFIFOWritePtr);
   Serial0.print(" | FIFO_RD:"); Serial0.print(lastFIFOReadPtr);
-  Serial0.print(" | HW_OVF:"); Serial0.println(lastFIFOOverflowRegister);
+  Serial0.print(" | HW_OVF:"); Serial0.print(lastFIFOOverflowRegister);
+  Serial0.print(" | WIFI:"); Serial0.print(WiFi.status() == WL_CONNECTED ? "OK" : "--");
+  Serial0.print(" | HTTP:"); Serial0.print(lastHttpCode);
+  Serial0.print(" ok:"); Serial0.print(sentOk);
+  Serial0.print(" fail:"); Serial0.println(sentFailed);
 }
 
 // -------------------- Arduino setup and loop --------------------
@@ -676,6 +762,10 @@ void setup() {
     Serial0.println("# HAND-BACK WEAK SIGNAL MODE");
   } else Serial0.println("# MAX30102 NOT FOUND");
 
+  // WiFi connects in the background; loop() does not wait for it.
+  startNetwork();
+  if (opticalReady) optical.clearFIFO();  // WiFi start-up may have taken a moment
+
   clearHeartHistory();
   rateCountStart = totalSamples;
   rateTimeStartUs = micros();
@@ -700,9 +790,14 @@ void loop() {
   serviceOpticalFIFO(); // service once more after analysis
 
   const uint32_t now = millis();
-  if ((uint32_t)(now - lastPrintMs) >= 2000UL) {
+  if ((uint32_t)(now - lastSendMs) >= SEND_INTERVAL_MS) {
+    lastSendMs = now;
+    queueTelemetry();  // copies a struct; never blocks
+  }
+  if ((uint32_t)(now - lastPrintMs) >= 1000UL) {
     lastPrintMs = now;
     printStatus();
   }
   delay(1);
 }
+

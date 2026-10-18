@@ -15,6 +15,9 @@ interface AlertDb {
   created_at: string;
   acknowledged_at: string | null;
   acknowledged_by: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  resolution_note: string | null;
 }
 interface DeviceDb {
   id: string;
@@ -45,7 +48,7 @@ const iso = (v: string): string => new Date(v).toISOString();
 const isoOrNull = (v: string | null): string | null => (v === null ? null : iso(v));
 
 const ALERT_COLS =
-  "id,patient_id,device_id,event_id,type,detail,severity,status,source,created_at,acknowledged_at,acknowledged_by";
+  "id,patient_id,device_id,event_id,type,detail,severity,status,source,created_at,acknowledged_at,acknowledged_by,resolved_at,resolved_by,resolution_note";
 const READING_COLS =
   "id,reading_id,device_id,patient_id,heart_rate_bpm,skin_temperature_c,acceleration_g,signal_quality,source,received_at,observed_at";
 
@@ -62,6 +65,9 @@ const toAlert = (r: AlertDb): Alert => ({
   createdAt: iso(r.created_at),
   acknowledgedAt: isoOrNull(r.acknowledged_at),
   acknowledgedBy: r.acknowledged_by,
+  resolvedAt: isoOrNull(r.resolved_at),
+  resolvedBy: r.resolved_by,
+  resolutionNote: r.resolution_note,
 });
 
 const toDevice = (r: DeviceDb): DeviceRow => ({
@@ -123,11 +129,11 @@ export function createSupabaseStore(db: SupabaseClient): Store {
       return { alert: toAlert(existing), created: false };
     },
 
-    async createSensorAlert({ patientId, deviceId, type, detail, source }) {
+    async createSensorAlert({ patientId, deviceId, type, detail, severity, source }) {
       const row = check(
         await db
           .from("alerts")
-          .insert({ patient_id: patientId, device_id: deviceId, event_id: null, type, detail, severity: "urgent", status: "open", source })
+          .insert({ patient_id: patientId, device_id: deviceId, event_id: null, type, detail, severity, status: "open", source })
           .select(ALERT_COLS)
           .single<AlertDb>(),
       );
@@ -149,6 +155,23 @@ export function createSupabaseStore(db: SupabaseClient): Store {
       if (first) return { alert: toAlert(first), changed: true };
       const existing = check(await db.from("alerts").select(ALERT_COLS).eq("id", id).maybeSingle<AlertDb>());
       return existing ? { alert: toAlert(existing), changed: false } : null;
+    },
+
+    async resolveAlert(id, userId, note) {
+      const existing = check(await db.from("alerts").select(ALERT_COLS).eq("id", id).maybeSingle<AlertDb>());
+      if (!existing) return null;
+      if (existing.status === "resolved") return { alert: toAlert(existing), changed: false };
+      const now = new Date().toISOString();
+      const patch: Record<string, unknown> = { status: "resolved", resolved_at: now, resolved_by: userId, resolution_note: note };
+      if (existing.status === "open") Object.assign(patch, { acknowledged_at: now, acknowledged_by: userId });
+      // Conditional on the status we read, so two caregivers closing at once resolve it exactly once.
+      const updated = check(
+        await db.from("alerts").update(patch).eq("id", id).eq("status", existing.status).select(ALERT_COLS).returns<AlertDb[]>(),
+      );
+      const first = updated[0];
+      if (first) return { alert: toAlert(first), changed: true };
+      const current = check(await db.from("alerts").select(ALERT_COLS).eq("id", id).maybeSingle<AlertDb>());
+      return current ? { alert: toAlert(current), changed: false } : null;
     },
 
     async listAlerts({ status, limit }) {

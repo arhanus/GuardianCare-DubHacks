@@ -1,26 +1,29 @@
 import { deviceState } from "../../patient-policy";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
-import { Text, View } from "react-native";
+import { Linking, Text, View } from "react-native";
 import { HeartPulse, Thermometer, Activity } from "lucide-react-native";
 
 import { MAX_READINGS, pickHeartRate, pickMotion, pickTemperature, series } from "../../live-policy";
 import { useLive } from "../../live";
 import { MetricChart } from "../../metric-chart";
 import { Stats10 } from "../../components/ui/stats-4";
-import { Action as Pressable, Card, Heading, Screen, Disclosure, StateCard, s } from "../../ui";
+import { Action as Pressable, Card, Heading, Screen, Disclosure, StateCard, s, toneOf, cardTone } from "../../ui";
 import { useSession } from "../../session";
 import { useAlerts } from "../../store";
+import { fallRiskLabel, phoneHref, useResidentProfiles } from "../../resident-profiles";
 
 export default function Person() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useSession();
   const { alerts, people } = useAlerts();
   const live = useLive();
-  const person = session?.role === "nurse" ? people.find((p) => p.id === id) : undefined;
+  const { profile: profileOf } = useResidentProfiles();
+  const person = session?.role === "caregiver" ? people.find((p) => p.id === id) : undefined;
   const { watch } = live;
   useEffect(() => (id ? watch(id) : undefined), [id, watch]);
-  if (!person) return <Screen><StateCard title="Patient not found" description="Choose a patient from the patient list." action="Back to patients" onAction={() => router.replace("/")} /></Screen>;
+  if (!person) return <Screen><StateCard title="Resident not found" description="Choose a resident from the resident list." action="Back to residents" onAction={() => router.replace("/")} /></Screen>;
+  const profile = profileOf(person.id);
   const buffer = live.readings[person.id];
   const hr = series(buffer, pickHeartRate);
   const temp = series(buffer, pickTemperature);
@@ -32,14 +35,17 @@ export default function Person() {
   ].filter(metric => metric.values.length > 0);
   return (
     <Screen>
-      <Heading title={person.name} subtitle={`Patient profile · ${person.room}`} />
-      <Pressable style={s.choice} onPress={() => router.push({ pathname: "/patient-editor", params: { id: person.id } })}><Text style={s.title}>Edit patient details (this phone only)</Text></Pressable>
-      {alerts.filter(event => event.personId === person.id && event.status !== "closed").map(event => <Pressable key={event.id} onPress={() => router.push(`/incident/${event.id}`)}><Card><Text style={[s.title, s.danger]}>{event.title} · {event.status === "accepted" ? "Help in progress" : "Needs response"}</Text><Text style={s.label}>Review event →</Text></Card></Pressable>)}
+      <Heading title={person.name} subtitle={`Resident profile · ${person.room}`} />
+      <Pressable style={s.choice} onPress={() => router.push({ pathname: "/patient-editor", params: { id: person.id } })}><Text style={s.title}>Edit resident details (this phone only)</Text></Pressable>
+      {alerts.filter(event => event.personId === person.id && event.status !== "closed").map(event => <Pressable key={event.id} onPress={() => router.push(`/incident/${event.id}`)}><Card tone={cardTone(event)}><Text style={[s.title, toneOf(event)]}>{event.severity === "warning" ? "Warning · " : ""}{event.title} · {event.status === "accepted" ? "Help in progress" : "Needs response"}</Text><Text style={s.label}>Review event →</Text></Card></Pressable>)}
       <Card>
-        <View style={s.row}><View style={s.avatar}><Text style={s.title}>{person.initials}</Text></View><View style={{ flex: 1 }}><Text style={s.title}>{person.name}</Text><Text style={s.label}>Care team</Text></View><Text style={s.badge}>Patient</Text></View>
+        <View style={s.row}><View style={s.avatar}><Text style={s.title}>{person.initials}</Text></View><View style={{ flex: 1 }}><Text style={s.title}>{person.name}</Text><Text style={s.label}>{profile.age ? `Age ${profile.age}` : "Resident"}</Text></View><Text style={[s.badge, profile.fallRisk === "high" && s.danger]}>{fallRiskLabel(profile.fallRisk)}</Text></View>
         <Text style={s.label}>Location · {person.room}</Text>
         <Text style={s.label}>Assigned wristband · {person.device}</Text><Text style={s.label}>Assigned caregiver · {person.caregiver || "Not assigned"}</Text>
-        <Text style={s.label}>Synthetic patient. No clinical record is connected.</Text>
+        {!!profile.conditions && <Text style={s.label}>Conditions · {profile.conditions}</Text>}
+        {!!profile.medications && <Text style={s.label}>Medications and allergies · {profile.medications}</Text>}
+        {!!profile.contactPhone && <Pressable accessibilityRole="button" accessibilityLabel={`Call ${profile.contactName || "emergency contact"}`} onPress={() => void Linking.openURL(phoneHref(profile.contactPhone))} style={s.button}><Text style={s.buttonText}>Call {profile.contactName || "emergency contact"}</Text></Pressable>}
+        <Text style={s.label}>Synthetic resident. No clinical record is connected.</Text>
       </Card>
       <Card>
         <View style={s.row}>
@@ -63,10 +69,10 @@ export default function Person() {
         Live from the wristband · {live.connected ? "streaming now" : "reconnecting…"} · Mini charts show the last readings.
       </Text>
       {metrics.length ? <Stats10 metrics={metrics} stale={!person.connected} /> : <StateCard title="Waiting for live data" description="No measurements have arrived yet. Check that the wristband is on and connected to Wi-Fi." />}</>}
-      {person.custom && <StateCard title="No measurements yet" description="This patient has no wristband assigned, so there are no readings." />}
-      <Text style={s.section}>Patient events</Text>
-      {alerts.filter(event => event.personId === person.id).map(event => <Pressable key={event.id} accessibilityRole="button" accessibilityLabel={`Review ${event.title} for ${person.name}`} onPress={() => router.push(`/incident/${event.id}`)}><Card><View style={s.row}><Text style={s.title}>{event.title}</Text><Text style={s.label}>{event.time}</Text></View><Text style={event.responding ? s.badge : s.danger}>{event.status === "closed" ? "Closed" : event.responding ? "In progress" : "Needs response"}</Text><Text style={s.label}>Open event →</Text></Card></Pressable>)}
-      {!alerts.some(event => event.personId === person.id) && <Card><Text style={s.label}>No recorded events for this patient.</Text></Card>}
+      {person.custom && <StateCard title="No measurements yet" description="This resident has no wristband assigned, so there are no readings." />}
+      <Text style={s.section}>Resident events</Text>
+      {alerts.filter(event => event.personId === person.id).map(event => <Pressable key={event.id} accessibilityRole="button" accessibilityLabel={`Review ${event.title} for ${person.name}`} onPress={() => router.push(`/incident/${event.id}`)}><Card><View style={s.row}><Text style={s.title}>{event.title}</Text><Text style={s.label}>{event.time}</Text></View><Text style={event.responding ? s.badge : toneOf(event)}>{event.status === "closed" ? "Closed" : event.responding ? "In progress" : "Needs response"}</Text><Text style={s.label}>Open event →</Text></Card></Pressable>)}
+      {!alerts.some(event => event.personId === person.id) && <Card><Text style={s.label}>No recorded events for this resident.</Text></Card>}
       {!person.custom && <Disclosure title="Live charts">
       <Text style={s.label}>Last {MAX_READINGS} readings, about one per second. Gaps mean the sensor had no valid value.</Text>
       <MetricChart title="Heart rate" icon={HeartPulse} unit="bpm" color="#BF5269" labels={hr.labels} values={hr.values} />

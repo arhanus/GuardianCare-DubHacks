@@ -1,9 +1,9 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
-/** Nurse: watches every patient and gets the alarm. Patient: wears the wristband and can send SOS. */
-export type Role = "nurse" | "patient";
+/** Caregiver: watches every resident and gets the alarm. Family: follows one resident, no alarm. */
+export type Role = "caregiver" | "family";
 export type SubscriptionPreference = { plan: "plus" | "pro"; yearly: boolean };
 type Session = { name: string; role: Role };
-const defaultSubscription = (role?: Role): SubscriptionPreference => ({ plan: role === "nurse" ? "pro" : "plus", yearly: false });
+const defaultSubscription = (role?: Role): SubscriptionPreference => ({ plan: role === "caregiver" ? "pro" : "plus", yearly: false });
 const SessionContext = createContext<{
   session: Session | null;
   enterDemo: (session: Session) => void;
@@ -23,7 +23,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         signOut: () => { setSubscriptionPreference(defaultSubscription()); setSession(null); },
         updateProfile: (name) => setSession(value => value ? { ...value, name: name.trim() || value.name } : value),
         subscriptionPreference,
-        saveSubscriptionPreference: (value) => setSubscriptionPreference({ ...value, plan: session?.role === "nurse" ? "pro" : value.plan }),
+        saveSubscriptionPreference: (value) => setSubscriptionPreference({ ...value, plan: session?.role === "caregiver" ? "pro" : value.plan }),
       }}
     >
       {children}
