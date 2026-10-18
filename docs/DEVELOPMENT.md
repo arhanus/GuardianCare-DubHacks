@@ -3,7 +3,7 @@
 ## Setup
 ```bash
 git clone <repo-url> && cd guardiancare
-nvm use            # Node 22 (see .nvmrc); Expo SDK 56 needs >= 22.13
+nvm use            # Node 22 (see .nvmrc); Expo SDK 57 needs >= 22.13
 npm install        # one root package-lock.json
 cp apps/api/.env.example apps/api/.env       # fill values
 cp apps/mobile/.env.example apps/mobile/.env
@@ -32,3 +32,6 @@ Branches: `main` (integration, Arhan), `feature/mobile-arhan`, `feature/backend-
 
 ## Shared contract changes
 1. Agree in chat. 2. Edit `packages/contracts/src/index.ts` + `docs/API_CONTRACT.md` in one small PR. 3. Merge to `main` first; both rebase. Contracts are types-only: use `import type`.
+
+## Phone can't reach the computer ("taking longer than it should")
+Guest/venue Wi-Fi often blocks phone-to-computer traffic, so Expo Go times out and the app can't reach the API. Run `npm run dev:tunnel` instead of `npm run dev`: it tunnels the API publicly, starts Expo in tunnel mode and points the app at the tunnel URL. A phone hotspot (computer, phone and ESP32 on it) also works and keeps traffic local.

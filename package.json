@@ -17,13 +17,15 @@
     "dev:api": "npm run dev -w @guardiancare/api",
     "build:api": "npm run build -w @guardiancare/api",
     "start:api": "npm run start -w @guardiancare/api",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev:phone": "npm run start:phone -w @guardiancare/mobile",
+    "dev:tunnel": "bash scripts/dev-tunnel.sh"
   },
   "overrides": {
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-native-reanimated": "4.3.1",
-    "react-native-worklets": "0.8.3"
+    "react-native-reanimated": "4.5.1",
+    "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
     "typescript": "~6.0.3"

@@ -19,7 +19,7 @@ export default function Subscription() {
   const { width, height, fontScale } = useWindowDimensions();
   const inlineCheckout = height < 600 || fontScale > 1.3;
   const entrance = useScreenMotion();
-  const organization = session?.type === "organization";
+  const organization = session?.role === "nurse";
   const plans = basePlans.map(plan => plan.id === "pro" && !organization
     ? { ...plan, monthly: 30, yearly: 300 }
     : plan);

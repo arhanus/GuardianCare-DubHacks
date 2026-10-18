@@ -1,11 +1,12 @@
 import { StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { ChevronRight, UserRound, ShieldCheck, LockKeyhole, Bell, HelpCircle, FileText, CreditCard, LogOut, type LucideIcon } from "lucide-react-native";
+import Constants from "expo-constants";
 import { useSession } from "../../session";
+import { ConnectionCard } from "../../components/connection-card";
 import { Action as Pressable, Card, Heading, Screen, colors, s } from "../../ui";
 
 const sections: { key: string; label: string; detail: string; Icon: LucideIcon }[] = [
-  { key: "devices", label: "Devices & trusted people", detail: "Demo pairing, recipients and personal role", Icon: UserRound },
   { key: "account", label: "Personal information", detail: "Your name and account details", Icon: UserRound },
   { key: "privacy", label: "Privacy & data", detail: "Sharing preferences and data controls", Icon: ShieldCheck },
   { key: "security", label: "Security", detail: "Sign-in and session information", Icon: LockKeyhole },
@@ -15,18 +16,17 @@ const sections: { key: string; label: string; detail: string; Icon: LucideIcon }
 ];
 export default function Profile() {
   const { session, signOut, subscriptionPreference } = useSession();
-  const org = session?.type === "organization";
   return <Screen>
-    <Heading title="Your profile" subtitle="Your space. Your preferences. Your peace of mind." />
-    <Card><View style={s.row}><View style={styles.avatar}><Text style={styles.initial}>{session?.name.charAt(0).toUpperCase()}</Text></View><View style={{ flex: 1, gap: 5 }}><Text style={s.title}>{session?.name}</Text><Text style={s.label}>{org ? session.organization : "Personal account"}</Text><Text style={s.badge}>{org ? "Pro · hospital & care team" : "Personal · Plus & Pro available"}</Text></View></View></Card>
+    <Heading title="Your profile" subtitle="Your account and connection." />
+    <Card><View style={s.row}><View style={styles.avatar}><Text style={styles.initial}>{session?.name.charAt(0).toUpperCase()}</Text></View><View style={{ flex: 1, gap: 5 }}><Text style={s.title}>{session?.name}</Text><Text style={s.label}>{session?.role === "nurse" ? "Nurse · care team" : "Patient"}</Text></View></View></Card>
     <Pressable accessibilityRole="button" accessibilityLabel="Manage subscription" onPress={() => router.push("/subscription")} style={({ pressed }) => [styles.subscription, pressed && styles.pressed]}>
-      <CreditCard color="white" size={25} /><View style={{ flex: 1, gap: 5 }}><Text style={[s.title, { color: "white" }]}>Manage subscription</Text><Text style={styles.light}>{subscriptionPreference.plan === "pro" ? "Pro" : "Plus"} · {subscriptionPreference.yearly ? "Yearly" : "Monthly"} preference</Text><Text style={styles.light}>No active paid subscription · Demo</Text></View><ChevronRight color="white" size={20} />
+      <CreditCard color="white" size={25} /><View style={{ flex: 1, gap: 5 }}><Text style={[s.title, { color: "white" }]}>Manage subscription</Text><Text style={styles.light}>{subscriptionPreference.plan === "pro" ? "Pro" : "Plus"} · {subscriptionPreference.yearly ? "Yearly" : "Monthly"} preference</Text><Text style={styles.light}>No payments are connected</Text></View><ChevronRight color="white" size={20} />
     </Pressable>
+    <ConnectionCard />
     <Text style={s.section}>Account & preferences</Text>
     <View style={styles.list}>{sections.map(({ key, label, detail, Icon }) => <Pressable key={key} accessibilityRole="button" accessibilityLabel={label} onPress={() => router.push(`/settings/${key}`)} style={({ pressed }) => [styles.row, pressed && styles.pressed]}><View style={styles.icon}><Icon color={colors.ink} size={21} /></View><View style={{ flex: 1 }}><Text style={s.title}>{label}</Text><Text style={s.label}>{detail}</Text></View><ChevronRight size={18} color={colors.muted} /></Pressable>)}</View>
     <Pressable accessibilityRole="button" onPress={signOut} style={({ pressed }) => [styles.signout, pressed && styles.pressed]}><LogOut size={20} color={colors.red} /><Text style={[s.title, { color: colors.red }]}>Sign out</Text></Pressable>
-    <Text style={s.label}>Demo changes stay for this session and reset when you reload or sign out.</Text>
-    <Text style={styles.version}>GuardianCare · Version 1.0.0</Text>
+    <Text style={styles.version}>GuardianCare · Version {Constants.expoConfig?.version ?? "0.1.0"}</Text>
   </Screen>;
 }
 const styles = StyleSheet.create({

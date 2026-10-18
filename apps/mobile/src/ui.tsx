@@ -1,12 +1,15 @@
 import React, { useState } from "react";
-import { Animated, ScrollView, StyleSheet, Text, View, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, type PressableProps } from "react-native";
+import { Animated, RefreshControl, ScrollView, StyleSheet, Text, View, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, type PressableProps } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useScreenMotion, useValueMotion } from "./motion";
+import { useLive } from "./live";
+import { useSession } from "./session";
 
 export const colors = {
   ink: "#171717",
   muted: "#626262",
   green: "#177658",
+  blue: "#2563EB",
   background: "#FAFAFA",
   line: "#E5E5E5",
   red: "#BD3F48",
@@ -17,15 +20,19 @@ export const colors = {
 
 export function Screen({ children }: { children: React.ReactNode }) {
   const entrance = useScreenMotion();
+  const live = useLive();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = () => { setRefreshing(true); live.refresh().finally(() => setRefreshing(false)); };
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["top", "left", "right"]}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}><Animated.View style={[{ flex: 1 }, entrance]}><ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}><Animated.View style={[{ flex: 1 }, entrance]}><ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         <View style={s.brand}>
-          <Text style={s.logo}>GuardianCare<Text style={{ color: colors.green }}>.</Text></Text>
-          <Text style={s.demo}>DEMO DATA</Text>
+          <Text style={s.logo}>guardian<Text style={{ color: colors.blue }}>care</Text><Text style={{ color: colors.green }}>.</Text></Text>
+          <Text style={s.demo}>PROTOTYPE</Text>
         </View>
+        <BackendBanner />
         {children}
-        <Disclosure title="About this demo"><Text style={s.label}>Fictional people and simulated readings. Changes stay in this session. No real Bluetooth device, remote SOS delivery, medical monitoring or payment service is connected. Skin temperature is not core body temperature.</Text></Disclosure>
+        <Disclosure title="About this prototype"><Text style={s.label}>Values come live from a prototype wristband and are not a clinical measurement. Alarm thresholds are demo settings. Skin temperature is not core body temperature. Patients are synthetic. Sign-in and subscriptions are not connected to real accounts or payments.</Text></Disclosure>
       </ScrollView></Animated.View></KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -78,4 +85,19 @@ export function Disclosure({ title, children }: { title: string; children: React
 }
 export function StateCard({ title, description, action, onAction, loading = false }: { title: string; description: string; action?: string; onAction?: () => void; loading?: boolean }) {
  return <Card>{loading && <ActivityIndicator accessibilityLabel="Loading" color={colors.green} />}<Text accessibilityRole="header" style={s.title}>{title}</Text><Text style={s.label}>{description}</Text>{action && onAction && <Action onPress={onAction} style={s.choice}><Text style={s.title}>{action}</Text></Action>}</Card>;
+}
+
+/** One place that tells the user when the server or the live stream is unreachable. */
+function BackendBanner() {
+ const { session } = useSession();
+ const live = useLive();
+ if (!session) return null;
+ if (!live.loaded) return <Card><Text accessibilityLiveRegion="polite" style={s.label}>Connecting to the server…</Text></Card>;
+ if (live.error) return <Card>
+  <Text accessibilityRole="alert" style={[s.title, s.danger]}>No connection</Text>
+  <Text style={s.label}>{live.error} Alarms and live values are paused until it is back.</Text>
+  <Action onPress={() => void live.refresh()} style={s.button}><Text style={s.buttonText}>Try again</Text></Action>
+ </Card>;
+ if (!live.connected) return <Card><Text accessibilityLiveRegion="polite" style={[s.label, s.danger]}>Reconnecting to live updates…</Text></Card>;
+ return null;
 }

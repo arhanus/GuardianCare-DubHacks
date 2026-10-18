@@ -4,24 +4,27 @@ import { AlertProvider } from "../store";
 import { SessionProvider, useSession } from "../session";
 import { MotionProvider } from "../motion";
 import { SOSProvider } from "../sos";
+import { LiveProvider } from "../live";
+import { ServerProvider } from "../server-url";
 import "../global.css";
 export default function Layout() {
   return (
-    <MotionProvider><SessionProvider>
+    <MotionProvider><ServerProvider><SessionProvider><LiveProvider>
       <Navigation />
-    </SessionProvider></MotionProvider>
+    </LiveProvider></SessionProvider></ServerProvider></MotionProvider>
   );
 }
 function Navigation() {
   const { session } = useSession();
   return (
     <AlertProvider
-      key={session?.type ?? "signed-out"}
+      key={session?.role ?? "signed-out"}
     >
       <SOSProvider><StatusBar style={session ? "dark" : "light"} />
       <Stack
         screenOptions={{
           headerTintColor: "#171717",
+          headerBackTitle: "Back",
           headerStyle: { backgroundColor: "#FAFAFA" },
           headerShadowVisible: false,
         }}

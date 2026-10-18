@@ -21,7 +21,7 @@ type Props = {
 
 /**
  * Editorial 2x2 care dashboard inspired by the supplied 21st.dev reference.
- * Counts are sourced from the demo store; no trends or diagnostics are implied.
+ * Counts are sourced from the live patient list; no trends or diagnostics are implied.
  */
 export function CareDashboard({ connected, total, pending, unassigned, onAlerts }: Props) {
   const { width } = useWindowDimensions();
@@ -85,10 +85,10 @@ export function CareDashboard({ connected, total, pending, unassigned, onAlerts 
     <View style={styles.outer}>
       <View style={styles.header}>
         <Text accessibilityRole="header" style={[styles.heading, narrow && styles.headingNarrow]}>Dashboard overview</Text>
-        <View style={styles.demoPill}><View style={styles.demoDot}/><Text style={styles.demoText}>DEMO</Text></View>
+        
       </View>
 
-      {unassigned > 0 && <Text style={{ color: "#626262", fontSize: 14, marginBottom: 12 }}>{unassigned} {unassigned === 1 ? "patient" : "patients"} without an assigned bracelet</Text>}
+      {unassigned > 0 && <Text style={{ color: "#626262", fontSize: 14, marginBottom: 12 }}>{unassigned} {unassigned === 1 ? "patient" : "patients"} without a wristband</Text>}
       <View style={styles.grid}>
         {[0, 1].map(row => (
           <View key={row} style={styles.gridRow}>
@@ -161,9 +161,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: 4, paddingTop: 3 },
   heading: { color: "#080808", fontSize: 24, letterSpacing: -0.7, fontWeight: "700", flexShrink: 1 },
   headingNarrow: { fontSize: 20 },
-  demoPill: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F5F5F5", borderRadius: 30, paddingHorizontal: 9, paddingVertical: 7 },
-  demoDot: { width: 6, height: 6, backgroundColor: "#858585", borderRadius: 3 },
-  demoText: { fontSize: 9, color: "#777777", fontWeight: "700", letterSpacing: 1 },
   grid: { gap: 12 },
   gridRow: { flexDirection: "row", gap: 12 },
   animatedCard: { flex: 1, minWidth: 0 },

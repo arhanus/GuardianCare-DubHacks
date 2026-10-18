@@ -12,8 +12,8 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowRight, Building2, UserRound } from "lucide-react-native";
-import { useSession, type AccountType } from "../session";
+import { ArrowRight, Stethoscope, UserRound } from "lucide-react-native";
+import { useSession, type Role } from "../session";
 import { useScreenMotion } from "../motion";
 
 const palette = {
@@ -30,9 +30,8 @@ export default function Welcome() {
   const { width } = useWindowDimensions();
   const desktop = width >= 720;
   const [register, setRegister] = useState(false);
-  const [type, setType] = useState<AccountType>("organization");
+  const [role, setRole] = useState<Role>("nurse");
   const [name, setName] = useState("");
-  const [organization, setOrganization] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
@@ -41,32 +40,20 @@ export default function Welcome() {
 
   function continueWithEmail() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError("Enter a valid demo email address to continue.");
+      setError("Enter a valid email address to continue.");
       return;
     }
     if (register && !name.trim()) {
-      setError("Enter a name for your demo profile.");
-      return;
-    }
-    if (register && type === "organization" && !organization.trim()) {
-      setError("Enter an organization name for your demo profile.");
+      setError("Enter your name.");
       return;
     }
     setError("");
-    enterDemo({
-      name: name.trim() || "Demo caregiver",
-      type,
-      organization: type === "organization" ? organization.trim() || "Care team" : undefined,
-    });
+    enterDemo({ name: name.trim() || (role === "nurse" ? "Nurse" : "Patient"), role });
   }
 
   function enterSample() {
     setError("");
-    enterDemo({
-      name: "Demo caregiver",
-      type,
-      organization: type === "organization" ? "Northside Care Team" : undefined,
-    });
+    enterDemo({ name: role === "nurse" ? "Nurse" : "Patient", role });
   }
 
   function toggleMode() {
@@ -104,23 +91,23 @@ export default function Welcome() {
             <Text accessibilityRole="header" style={styles.heading}>
               {register ? "Create your account" : "Sign in to GuardianCare"}
             </Text>
-            <Text style={styles.subtitle}>A clear view of the people in your care.</Text>
+            <Text style={styles.subtitle}>Hospital wristband monitoring.</Text>
 
             <View style={styles.form}>
               <View style={styles.typeRow}>
                 {([
-                  { value: "organization" as const, label: "Care team", Icon: Building2 },
-                  { value: "personal" as const, label: "Personal", Icon: UserRound },
+                  { value: "nurse" as const, label: "I'm a nurse", Icon: Stethoscope },
+                  { value: "patient" as const, label: "I wear the wristband", Icon: UserRound },
                 ]).map(({ value, label, Icon }) => (
                   <Pressable
                     key={value}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: type === value }}
-                    onPress={() => { setType(value); setError(""); }}
-                    style={[styles.typeOption, type === value && styles.typeSelected]}
+                    accessibilityState={{ selected: role === value }}
+                    onPress={() => { setRole(value); setError(""); }}
+                    style={[styles.typeOption, role === value && styles.typeSelected]}
                   >
-                    <Icon size={17} color={type === value ? palette.text : palette.secondary} />
-                    <Text style={[styles.typeText, type === value && styles.typeTextSelected]}>{label}</Text>
+                    <Icon size={17} color={role === value ? palette.text : palette.secondary} />
+                    <Text style={[styles.typeText, role === value && styles.typeTextSelected]}>{label}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -129,7 +116,7 @@ export default function Welcome() {
                 <>
                   <Text style={styles.fieldLabel}>Your name</Text>
                   <TextInput
-                    accessibilityLabel="Demo profile name"
+                    accessibilityLabel="Your name"
                     autoComplete="off"
                     autoCapitalize="words"
                     placeholder="Your name"
@@ -143,33 +130,16 @@ export default function Welcome() {
                 </>
               )}
 
-              {register && type === "organization" && (
-                <>
-                  <Text style={styles.fieldLabel}>Organization</Text>
-                  <TextInput
-                    accessibilityLabel="Demo organization"
-                    autoComplete="off"
-                    placeholder="Hospital or care team"
-                    placeholderTextColor="#797979"
-                    value={organization}
-                    onChangeText={setOrganization}
-                    onFocus={() => setFocused("organization")}
-                    onBlur={() => setFocused(null)}
-                    style={[styles.input, focused === "organization" && styles.inputFocused]}
-                  />
-                </>
-              )}
-
-              <Text style={styles.fieldLabel}>{type === "organization" ? "Work email" : "Email"}</Text>
+              <Text style={styles.fieldLabel}>Email</Text>
               <TextInput
-                accessibilityLabel="Demo email address"
+                accessibilityLabel="Email address"
                 autoComplete="off"
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
                 returnKeyType="go"
                 onSubmitEditing={continueWithEmail}
-                placeholder={type === "organization" ? "name@work-email.com" : "name@example.com"}
+                placeholder="name@example.com"
                 placeholderTextColor="#797979"
                 value={email}
                 onChangeText={value => { setEmail(value); setError(""); }}
@@ -188,7 +158,7 @@ export default function Welcome() {
               <View style={styles.dividerRow}><View style={styles.divider}/><Text style={styles.or}>OR</Text><View style={styles.divider}/></View>
 
               <Pressable accessibilityRole="button" onPress={enterSample} style={({ pressed }) => [styles.secondary, pressed && { backgroundColor: "#262626" }]}>
-                <Text style={styles.secondaryText}>Explore the demo</Text>
+                <Text style={styles.secondaryText}>Continue without an account</Text>
                 <ArrowRight size={18} color="#E9E9E9" />
               </Pressable>
 
