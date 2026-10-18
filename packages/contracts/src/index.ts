@@ -49,6 +49,9 @@ export interface DeviceEvent {
   timestamp: IsoTimestamp;
 }
 
+export type AlertType = "SOS" | "HEART_RATE_ALERT" | "MOTION_ALERT" | "TEMPERATURE_ALERT";
+export type AlertDetail = "HR_HIGH" | "HR_LOW" | "SUDDEN_MOTION" | "TEMP_HIGH" | "TEMP_LOW";
+
 export type AlertStatus = "open" | "acknowledged" | "resolved";
 
 export interface Alert {
@@ -56,7 +59,13 @@ export interface Alert {
   patientId: string;
   deviceId: string;
   /** Source event type. */
-  type: Exclude<DeviceEventType, "HEARTBEAT">;
+  type: AlertType;
+  /** Which rule tripped, for sensor alerts; null for SOS. */
+  detail?: AlertDetail | null;
+  /** SOS/motion/temperature/heart-rate alerts are all "urgent": the app rings until acknowledged. */
+  severity?: "urgent" | "warning";
+  /** "app" = SOS pressed in the mobile app. */
+  source?: "device" | "simulation" | "app";
   status: AlertStatus;
   createdAt: IsoTimestamp;
   acknowledgedAt: IsoTimestamp | null;
@@ -72,3 +81,25 @@ export interface HealthResponse {
   status: "ok";
   service: "guardiancare-api";
 }
+
+/** Stored reading as returned by the API (and pushed over /api/live). */
+export interface LiveReading {
+  id: string;
+  deviceId: string;
+  patientId: string;
+  heartRateBpm: number | null;
+  skinTemperatureC: number | null;
+  accelerationG: { x: number; y: number; z: number } | null;
+  /** sqrt(x^2 + y^2 + z^2); null when acceleration is unavailable. */
+  motionG: number | null;
+  signalQuality: "good" | "poor" | "unknown";
+  receivedAt: IsoTimestamp;
+}
+
+/** WebSocket messages from GET /api/live. */
+export type LiveMessage =
+  | { type: "hello"; serverTime: IsoTimestamp }
+  | { type: "ping" }
+  | { type: "reading"; patientId: string; reading: LiveReading }
+  | { type: "alert"; alert: Alert }
+  | { type: "alert_updated"; alert: Alert };

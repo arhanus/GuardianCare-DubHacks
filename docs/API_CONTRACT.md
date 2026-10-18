@@ -7,7 +7,9 @@ Auth: devices send `x-device-key: <DEVICE_API_KEY>`; mobile uses Supabase user J
 | Endpoint | Status |
 |---|---|
 | GET /api/health | **implemented** |
-| all others | planned |
+| GET /api/patients, /api/patients/:id/readings, GET /api/alerts, PATCH /api/alerts/:id/acknowledge | **implemented** (see `apps/api/README.md`) |
+| POST /api/devices/events, /api/devices/readings, /api/devices/heartbeat | **implemented** |
+| POST /api/telemetry, GET /api/live (WebSocket), POST /api/patients/:id/sos | **implemented** (below) |
 
 ## GET /api/health — implemented
 Purpose: liveness/Render health check. Auth: none. Request: none.
@@ -53,3 +55,22 @@ Responses: `202` `{ "accepted": true }`; `400`; `401`; `404`.
 ## PATCH /api/alerts/:id/acknowledge — planned
 Auth: nurse. Request (`AcknowledgeAlertRequest`): `{ "acknowledgedBy": "Nurse Kim" }`
 `200` -> updated `Alert` with `status: "acknowledged"`; `404` unknown alert; `409` already acknowledged/resolved.
+
+
+## POST /api/telemetry — implemented
+Purpose: ESP32 firmware snapshot, once per second. Auth: device key via `x-device-key` (also `x-api-key` or `Authorization: Bearer`).
+Request is the firmware's nested JSON (`heart`, `optical`, `temperature`, `imu`, `device`); `deviceId` must equal the configured device. `imu.peak` = `{accelG, jerkG, gyroDps}` maxima since the previous snapshot. Sensors that are unavailable are `null`/`valid:false`; values outside storage bounds (HR 20-250, temp 20-45 C) are stored as `null` rather than rejecting the snapshot. `bpm` may be a float (rounded).
+`201 { "ok": true, "receivedAt": "..." }`; `400` malformed; `401` bad key; `403` wrong deviceId; `409` device unassigned.
+
+## Alarm rules (demo-only thresholds, env-configurable, not clinical)
+Run on every new reading; each creates an `urgent` alert and pushes it over `/api/live`:
+- `MOTION_ALERT` / `SUDDEN_MOTION`: any axis changes >= `MOTION_AXIS_DELTA_G` (0.6 g) between snapshots, peak jerk >= `MOTION_JERK_G`, or acceleration >= `MOTION_IMPACT_G` (1.8 g). Cooldown `MOTION_COOLDOWN_SECONDS`.
+- `HEART_RATE_ALERT` / `HR_HIGH|HR_LOW`: `DEMO_HR_*`, sustained.
+- `TEMPERATURE_ALERT` / `TEMP_HIGH|TEMP_LOW`: outside `DEMO_TEMP_LOW_C`-`DEMO_TEMP_HIGH_C`, sustained `DEMO_TEMP_DURATION_SECONDS`.
+Alert `type`: `SOS | HEART_RATE_ALERT | MOTION_ALERT | TEMPERATURE_ALERT`; `source`: `device | simulation | app`.
+
+## GET /api/live — implemented (WebSocket)
+Auth: `?token=<Supabase access token>` when `REQUIRE_NURSE_AUTH=true`; otherwise open. Server messages (`LiveMessage` in contracts): `hello`, `ping`, `reading` (`patientId`, `reading` incl. `motionG`), `alert`, `alert_updated`. Single API instance only.
+
+## POST /api/patients/:patientId/sos — implemented
+SOS pressed in the app. Request `{ "eventId": "client-generated-unique-id" }` (idempotent). `201 { alert, duplicate:false }`, repeat `200 duplicate:true`; `404` unknown patient; `409` no device. Same auth as other nurse routes. Creates an `urgent` SOS alert with `source:"app"` and pushes it over `/api/live`.

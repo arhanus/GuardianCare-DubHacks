@@ -25,7 +25,7 @@ The startup log prints a line like `LAN: http://192.168.x.x:3000`. Use that URL 
 See `.env.example`. `SUPABASE_SERVICE_ROLE_KEY` accepts the new `sb_secret_...` key. Never log or commit secrets; the logger redacts `authorization` and `x-device-key` headers.
 
 ## Supabase setup
-Paste into the Supabase SQL Editor, in order: `supabase/migrations/20261017000100_schema.sql`, then `20261017000200_seed.sql`. Then set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (your `sb_secret_...` key) in `apps/api/.env`. Without them (non-production only) the API uses an in-memory store and logs a warning.
+Paste into the Supabase SQL Editor, in order: `20261017000100_schema.sql`, `20261017000200_seed.sql`, `20261017000300_alert_detail.sql`, then `20261017000400_sensor_alerts.sql` (adds motion/temperature alert types and the in-app SOS source; without it those alarms cannot be stored). Then set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (your `sb_secret_...` key) in `apps/api/.env`. Without them (non-production only) the API uses an in-memory store and logs a warning.
 
 ## Smoke test
 ```bash
@@ -50,3 +50,10 @@ curl -s -X POST $API/api/devices/readings -H "x-device-key: $KEY" -H 'content-ty
 curl -s "$API/api/patients/11111111-1111-4111-8111-111111111203/readings?limit=20" -H "$N"
 ```
 Demo HR rule (`DEMO_HR_*` env, example values only, not clinical): alerts only after >= 3 good-quality samples over >= 10 s all above/below the threshold; poor/unknown/null/stale samples reset it; 60 s cooldown. State is in memory (resets on restart). Run the extra migration `20261017000300_alert_detail.sql` too.
+
+## Wristband telemetry, live push, alarms
+- Firmware posts to `POST /api/telemetry` (header `x-device-key`, same value as `DEVICE_API_KEY`). Each snapshot is stored, pushed to phones, and checked against the alarm rules (sudden motion, heart rate, skin temperature).
+- Phones connect to `GET /api/live` (WebSocket) for `reading`, `alert` and `alert_updated` messages. The mobile app has no login yet, so run with `REQUIRE_NURSE_AUTH=false` locally.
+- No hardware? `DEVICE_API_KEY=<key> npm run replay:telemetry -w @guardiancare/api` streams firmware-shaped data; add `-- --spike` (sudden motion), `-- --temp` or `-- --hr` to trigger alarms.
+- Thresholds are demo-only env vars (`MOTION_*`, `DEMO_TEMP_*`, `DEMO_HR_*`); see `.env.example`. The ESP32, phone and this computer must share one 2.4 GHz LAN.
+- Sensor-alert storage errors are logged (`FAILED to create sensor alert`) instead of failing the wristband POST.

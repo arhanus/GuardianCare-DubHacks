@@ -9,10 +9,12 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "NODE_ENV=test node --import tsx --test test/*.test.ts",
-    "simulate:sos": "tsx scripts/simulate-sos.ts"
+    "simulate:sos": "tsx scripts/simulate-sos.ts",
+    "replay:telemetry": "tsx scripts/replay-telemetry.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.1",
+    "@fastify/websocket": "^11.3.4",
     "@guardiancare/contracts": "*",
     "@supabase/supabase-js": "^2.118.0",
     "fastify": "^5.12.7",

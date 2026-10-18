@@ -9,10 +9,12 @@ export function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(ha, hb);
 }
 
-/** Device key from `x-device-key` (repo contract) or `Authorization: Bearer` (sprint proposal). */
+/** Device key from `x-device-key` (repo contract), `x-api-key` (firmware) or `Authorization: Bearer`. */
 export function extractDeviceKey(req: FastifyRequest): string | null {
-  const h = req.headers["x-device-key"];
-  if (typeof h === "string" && h) return h;
+  for (const name of ["x-device-key", "x-api-key"]) {
+    const h = req.headers[name];
+    if (typeof h === "string" && h) return h;
+  }
   const auth = req.headers.authorization;
   if (typeof auth === "string") {
     const m = /^Bearer\s+(.+)$/i.exec(auth);

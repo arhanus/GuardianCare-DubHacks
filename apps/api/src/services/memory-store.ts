@@ -44,8 +44,8 @@ export function createMemoryStore(deviceId = "guardian-001"): Store {
       alerts.push(alert);
       return { alert, created: true };
     },
-    async createHrAlert(input) {
-      const alert = newAlert({ ...input, type: "HEART_RATE_ALERT", severity: "warning" });
+    async createSensorAlert(input) {
+      const alert = newAlert({ ...input, severity: "urgent" });
       alerts.push(alert);
       return alert;
     },

@@ -28,6 +28,16 @@ const envSchema = z.object({
   DEMO_HR_DURATION_SECONDS: z.coerce.number().int().positive().default(10),
   DEMO_HR_MIN_SAMPLES: z.coerce.number().int().min(2).default(3),
   DEMO_HR_COOLDOWN_SECONDS: z.coerce.number().int().min(0).default(60),
+  // DEMO-ONLY skin temperature range (Celsius) and sudden-motion thresholds (g). Not clinical.
+  DEMO_TEMP_LOW_C: z.coerce.number().default(30),
+  DEMO_TEMP_HIGH_C: z.coerce.number().default(38),
+  DEMO_TEMP_DURATION_SECONDS: z.coerce.number().int().positive().default(5),
+  DEMO_TEMP_MIN_SAMPLES: z.coerce.number().int().min(2).default(3),
+  DEMO_TEMP_COOLDOWN_SECONDS: z.coerce.number().int().min(0).default(60),
+  MOTION_AXIS_DELTA_G: z.coerce.number().positive().default(0.6),
+  MOTION_JERK_G: z.coerce.number().positive().default(1.5),
+  MOTION_IMPACT_G: z.coerce.number().positive().default(1.8),
+  MOTION_COOLDOWN_SECONDS: z.coerce.number().int().min(0).default(30),
   // Readings whose observedAt is further than this from server time are stored but never alert.
   READING_MAX_SKEW_SECONDS: z.coerce.number().int().positive().default(30),
 });

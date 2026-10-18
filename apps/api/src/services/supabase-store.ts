@@ -123,11 +123,11 @@ export function createSupabaseStore(db: SupabaseClient): Store {
       return { alert: toAlert(existing), created: false };
     },
 
-    async createHrAlert({ patientId, deviceId, detail, source }) {
+    async createSensorAlert({ patientId, deviceId, type, detail, source }) {
       const row = check(
         await db
           .from("alerts")
-          .insert({ patient_id: patientId, device_id: deviceId, event_id: null, type: "HEART_RATE_ALERT", detail, severity: "warning", status: "open", source })
+          .insert({ patient_id: patientId, device_id: deviceId, event_id: null, type, detail, severity: "urgent", status: "open", source })
           .select(ALERT_COLS)
           .single<AlertDb>(),
       );

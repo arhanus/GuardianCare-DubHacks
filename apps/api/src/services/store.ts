@@ -1,18 +1,21 @@
 /** Persistence boundary. Domain objects here are already in API (camelCase) shape. */
 
 export type AlertStatus = "open" | "acknowledged" | "resolved";
-export type Source = "device" | "simulation";
+export type Source = "device" | "simulation" | "app";
 export type AlertSource = Source;
 export type SignalQuality = "good" | "poor" | "unknown";
+
+export type AlertType = "SOS" | "HEART_RATE_ALERT" | "MOTION_ALERT" | "TEMPERATURE_ALERT";
+export type AlertDetail = "HR_HIGH" | "HR_LOW" | "SUDDEN_MOTION" | "TEMP_HIGH" | "TEMP_LOW";
 
 export interface Alert {
   id: string;
   patientId: string;
   deviceId: string;
   eventId: string | null;
-  type: "SOS" | "HEART_RATE_ALERT";
-  /** For HEART_RATE_ALERT: which direction tripped the demo rule. Additive field. */
-  detail: "HR_HIGH" | "HR_LOW" | null;
+  type: AlertType;
+  /** For sensor alerts: which rule tripped. Additive field. */
+  detail: AlertDetail | null;
   severity: "urgent" | "warning";
   status: AlertStatus;
   source: Source;
@@ -74,11 +77,12 @@ export interface Store {
     eventId: string;
     source: Source;
   }): Promise<{ alert: Alert; created: boolean }>;
-  /** Backend-generated alert (event_id NULL). */
-  createHrAlert(input: {
+  /** Backend-generated sensor alert (event_id NULL). */
+  createSensorAlert(input: {
     patientId: string;
     deviceId: string;
-    detail: "HR_HIGH" | "HR_LOW";
+    type: Exclude<AlertType, "SOS">;
+    detail: AlertDetail;
     source: Source;
   }): Promise<Alert>;
   /**
