@@ -1,67 +1,27 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { router } from "expo-router";
-import { people } from "../../data";
 import { useAlerts } from "../../store";
-import { Card, Heading, Screen, s } from "../../ui";
+import { Card, Heading, Screen, Action, StateCard, s } from "../../ui";
+import { useSession } from "../../session";
+import { eventStatus, eventDate } from "../../event-policy";
 export default function Alerts() {
-  const { alerts } = useAlerts();
-  const [activeOnly, setActiveOnly] = useState(true);
-  const visible = alerts.filter((a) => !activeOnly || !a.responding);
-  return (
-    <Screen>
-      <Heading
-        title="Here when it matters."
-        subtitle="Review requests and let others know you’re responding."
-      />
-      <View style={s.row}>
-        {[true, false].map((active) => (
-          <Pressable
-            key={String(active)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeOnly === active }}
-            onPress={() => setActiveOnly(active)}
-            style={[
-              s.button,
-              { flex: 1, opacity: activeOnly === active ? 1 : 0.65 },
-            ]}
-          >
-            <Text style={s.buttonText}>
-              {active ? "Needs response" : "All events"}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-      {visible.map((alert) => (
-        <Pressable
-          key={alert.id}
-          accessibilityRole="button"
-          onPress={() => router.push(`/incident/${alert.id}`)}
-        >
-          <Card>
-            <View style={s.row}>
-              <Text style={[s.badge, !alert.responding && s.danger]}>
-                {alert.responding ? "Responding" : alert.type}
-              </Text>
-              <Text style={s.label}>{alert.time} · Demo</Text>
-            </View>
-            <Text style={s.title}>{alert.title}</Text>
-            <Text style={s.label}>
-              {people.find((p) => p.id === alert.personId)?.name}
-            </Text>
-            <Text style={s.badge}>Review incident →</Text>
-          </Card>
-        </Pressable>
-      ))}
-      {visible.length === 0 && (
-        <Card>
-          <Text style={s.title}>All requests acknowledged</Text>
-          <Text style={s.label}>
-            You can review them under All events. Acknowledging does not resolve
-            an incident.
-          </Text>
-        </Card>
-      )}
-    </Screen>
-  );
+ const { alerts, people } = useAlerts();
+ const { session, caredName } = useSession();
+ const [filter, setFilter] = useState<"received" | "all" | "accepted">("received");
+ const visible = alerts.filter(event => filter === "all" || event.status === filter);
+ return <Screen>
+  <Heading title="Alerts" subtitle="Review, accept and close assistance events." />
+  <View style={[s.row, { alignItems: "stretch" }]}>
+   {(["received", "all"] as const).map(value => <Action key={value} accessibilityState={{ selected: filter === value }} onPress={() => setFilter(value)} style={[s.button, { flex: 1, flexBasis: 0, minWidth: 0, justifyContent: "center", paddingHorizontal: 8, opacity: filter === value ? 1 : 0.65 }]}><Text style={[s.buttonText, { textAlign: "center" }]}>{value === "received" ? "Needs response" : "All events"}{"\n"}{value === "received" ? alerts.filter(item => item.status === "received").length : alerts.length}</Text></Action>)}
+  </View>
+  <Action accessibilityState={{ selected: filter === "accepted" }} onPress={() => setFilter(filter === "accepted" ? "received" : "accepted")} style={[s.choice, filter === "accepted" && s.choiceSelected]}><Text style={s.title}>In progress · {alerts.filter(item => item.status === "accepted").length}</Text></Action>
+  {visible.map(event => <Action key={event.id} accessibilityLabel={`Review ${event.title}, ${eventStatus(event)}`} onPress={() => router.push(`/incident/${event.id}`)}><Card>
+   <View style={[s.row, { flexWrap: "wrap" }]}><Text style={[s.badge, event.status === "received" && s.danger]}>{eventStatus(event)}</Text><Text style={s.label}>{eventDate(event)}</Text></View>
+   <Text style={s.title}>{event.title}</Text>
+   <Text style={s.label}>{event.personId === "loved-one" ? caredName : event.personId === "self" ? session?.name : people.find(person => person.id === event.personId)?.name}</Text>
+   <Text style={s.badge}>Review event →</Text>
+  </Card></Action>)}
+  {visible.length === 0 && <StateCard title={filter === "received" ? "No events need a response" : "No events here"} description="Your event history stays available under All events." action="View all events" onAction={() => setFilter("all")} />}
+ </Screen>;
 }

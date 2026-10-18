@@ -1,10 +1,11 @@
-# StillHere caregiver frontend
+# GuardianCare frontend
 
-This `frontend` branch imports `lkim11l/test_stillhere` branch
-`feat/mobile-caregiver` at `7f6626f9b74b0c976055234cd3b30d794ba6ae14`.
+This `frontend` branch contains the full local `feat/subscription-plans` app
+from commit `3acdbb5` in `stillhere-expo-fix` (source: `lkim11l/test_stillhere`).
 It replaces the single-file Expo 54 prototype with the Expo 57 Router app:
 demo onboarding, care dashboards, patient details and charts, alerts and
-incident acknowledgments. Routes live in `src/app/`; entry: `expo-router/entry`.
+incident acknowledgments, SOS pairing and alarm preview, profile/settings,
+subscriptions, patient editing, personal care flows and motion. Routes live in `src/app/`; entry: `expo-router/entry`.
 
 ## Run
 

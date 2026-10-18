@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Animated,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -8,11 +9,13 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { ArrowRight, Bell, Radio, UsersRound, WifiOff } from "lucide-react-native";
+import { motion, useReducedMotion } from "../../motion";
 
 type Props = {
   total: number;
   connected: number;
   pending: number;
+  unassigned: number;
   onAlerts: () => void;
 };
 
@@ -20,23 +23,28 @@ type Props = {
  * Editorial 2x2 care dashboard inspired by the supplied 21st.dev reference.
  * Counts are sourced from the demo store; no trends or diagnostics are implied.
  */
-export function CareDashboard({ connected, total, pending, onAlerts }: Props) {
+export function CareDashboard({ connected, total, pending, unassigned, onAlerts }: Props) {
   const { width } = useWindowDimensions();
   const narrow = width < 430;
+  const reduced = useReducedMotion();
   const [values] = useState(() => Array.from({ length: 4 }, () => new Animated.Value(0)));
 
   useEffect(() => {
-    Animated.stagger(
-      100,
+    if (reduced) { values.forEach(value => value.setValue(1)); return; }
+    const animation = Animated.stagger(
+      55,
       values.map(value =>
         Animated.timing(value, {
           toValue: 1,
-          duration: 450,
-          useNativeDriver: true,
+          duration: motion.standard,
+          easing: motion.easing,
+          useNativeDriver: Platform.OS !== "web",
         }),
       ),
-    ).start();
-  }, [values]);
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [values, reduced]);
 
   const stats = [
     {
@@ -66,7 +74,7 @@ export function CareDashboard({ connected, total, pending, onAlerts }: Props) {
     {
       key: "offline",
       label: "Offline",
-      value: Math.max(0, total - connected).toString().padStart(2, "0"),
+      value: Math.max(0, total - connected - unassigned).toString().padStart(2, "0"),
       note: "Connection unavailable",
       Icon: WifiOff,
       accent: "#7B7B7B",
@@ -80,6 +88,7 @@ export function CareDashboard({ connected, total, pending, onAlerts }: Props) {
         <View style={styles.demoPill}><View style={styles.demoDot}/><Text style={styles.demoText}>DEMO</Text></View>
       </View>
 
+      {unassigned > 0 && <Text style={{ color: "#626262", fontSize: 14, marginBottom: 12 }}>{unassigned} {unassigned === 1 ? "patient" : "patients"} without an assigned bracelet</Text>}
       <View style={styles.grid}>
         {[0, 1].map(row => (
           <View key={row} style={styles.gridRow}>
@@ -138,7 +147,7 @@ export function CareDashboard({ connected, total, pending, onAlerts }: Props) {
       >
         <View style={styles.ctaIcon}><Bell size={21} color="#171717" /></View>
         <View style={styles.ctaCopy}>
-          <Text style={styles.ctaTitle}>{pending ? `${pending} events await review` : "No events awaiting review"}</Text>
+          <Text style={styles.ctaTitle}>{pending ? `${pending} ${pending === 1 ? "event awaits" : "events await"} review` : "No events awaiting review"}</Text>
           <Text style={styles.ctaSubtitle}>Fictional patients · simulated events</Text>
         </View>
         <View style={styles.ctaButton}><Text style={styles.ctaButtonText}>See all</Text><ArrowRight size={16} color="#FFFFFF" /></View>

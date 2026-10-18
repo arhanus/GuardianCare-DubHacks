@@ -2,20 +2,23 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { AlertProvider } from "../store";
 import { SessionProvider, useSession } from "../session";
+import { MotionProvider } from "../motion";
+import { SOSProvider } from "../sos";
+import "../global.css";
 export default function Layout() {
   return (
-    <SessionProvider>
+    <MotionProvider><SessionProvider>
       <Navigation />
-    </SessionProvider>
+    </SessionProvider></MotionProvider>
   );
 }
 function Navigation() {
   const { session } = useSession();
   return (
     <AlertProvider
-      key={session ? `${session.type}:${session.name}` : "signed-out"}
+      key={session?.type ?? "signed-out"}
     >
-      <StatusBar style={session ? "dark" : "light"} />
+      <SOSProvider><StatusBar style={session ? "dark" : "light"} />
       <Stack
         screenOptions={{
           headerTintColor: "#171717",
@@ -28,16 +31,19 @@ function Navigation() {
         </Stack.Protected>
         <Stack.Protected guard={!!session}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="patient-editor" options={{ title: "Patient profile" }} />
+          <Stack.Screen name="subscription" options={{ title: "Manage subscription" }} />
+          <Stack.Screen name="settings/[section]" options={{ title: "Account settings" }} />
           <Stack.Screen
             name="person/[id]"
-            options={{ title: "Person details" }}
+            options={{ title: "Patient profile" }}
           />
           <Stack.Screen
             name="incident/[id]"
-            options={{ title: "Incident details" }}
+            options={{ title: "Event details" }}
           />
         </Stack.Protected>
-      </Stack>
+      </Stack></SOSProvider>
     </AlertProvider>
   );
 }

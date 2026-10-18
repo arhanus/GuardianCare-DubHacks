@@ -1,5 +1,7 @@
-import { useId } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { sampleIndex } from "./chart-policy";
+import { useId, useState } from "react";
+import { Animated, Platform, StyleSheet, Text, View } from "react-native";
+import { useValueMotion } from "./motion";
 import type { LucideIcon } from "lucide-react-native";
 import Svg, {
   Defs,
@@ -10,7 +12,7 @@ import Svg, {
   Polyline,
   Rect,
 } from "react-native-svg";
-import { Card, s } from "./ui";
+import { Action, Card, StateCard, s } from "./ui";
 export function MetricChart({
   title,
   icon: Icon,
@@ -28,7 +30,14 @@ export function MetricChart({
   color: string;
   bars?: boolean;
 }) {
+  const seriesKey = labels.join("|");
+  const [selection, setSelection] = useState({ key: "", index: 0 });
+  const [chartWidth, setChartWidth] = useState(0);
+  const selected = selection.key === seriesKey ? Math.min(selection.index, values.length - 1) : values.length - 1;
+  const choose = (index: number) => setSelection({ key: seriesKey, index });
   const gradientId = `metric-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const transition = useValueMotion(labels.join("|"));
+  if (!values.length || values.length !== labels.length || values.some(value => !Number.isFinite(value))) return <StateCard title="No measurements yet" description="Measurements will appear after a device provides data." />;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const average = values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -37,7 +46,7 @@ export function MetricChart({
   const x = (i: number) => 12 + (i * 276) / Math.max(values.length - 1, 1);
   const y = (v: number) => 112 - ((v - low) / (high - low)) * 100;
   return (
-    <Card>
+    <Animated.View style={transition}><Card>
       <View style={styles.header}>
         <View style={[styles.icon, { backgroundColor: `${color}14` }]}>
           <Icon size={20} color={color} />
@@ -72,12 +81,21 @@ export function MetricChart({
           <Text style={s.label}>{high}</Text>
           <Text style={s.label}>{low}</Text>
         </View>
-        <View
-          accessible
-          accessibilityLabel={`${title} chart. ${labels.map((label, i) => `${label}: ${values[i]} ${unit}`).join("; ")}`}
+        <Action
+          accessibilityLabel={`${title} chart. Tap to inspect a sample. Use previous and next buttons for exact selection.`}
+          onLayout={event => setChartWidth(event.nativeEvent.layout.width)}
+          onPress={event => {
+            if (Platform.OS === "web") {
+              const pointer = event.nativeEvent as unknown as MouseEvent;
+              if (pointer.detail === 0) return;
+              const bounds = (event.currentTarget as unknown as HTMLElement).getBoundingClientRect();
+              choose(sampleIndex(pointer.clientX - bounds.left, bounds.width, values.length));
+            } else choose(sampleIndex(event.nativeEvent.locationX, chartWidth, values.length));
+          }}
           style={{ flex: 1 }}
         >
           <Svg
+            pointerEvents="none"
             width="100%"
             height={128}
             viewBox="0 0 300 128"
@@ -130,15 +148,21 @@ export function MetricChart({
                 strokeLinecap="round"
               />
             )}
+            <Line x1={x(selected)} x2={x(selected)} y1={12} y2={112} stroke={color} strokeWidth={1} strokeDasharray="3 3" />
           </Svg>
-        </View>
+        </Action>
       </View>
       <View style={s.row}>
         <Text style={s.label}>{labels[0]}</Text>
         <Text style={s.label}>{labels[Math.floor(labels.length / 2)]}</Text>
         <Text style={s.label}>{labels[labels.length - 1]}</Text>
       </View>
-    </Card>
+      <Text accessibilityLiveRegion="polite" style={s.title}>{labels[selected]} · {values[selected]} {unit}</Text>
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        <Action accessibilityLabel={`Previous ${title} sample`} disabled={selected <= 0} onPress={() => choose(selected - 1)} style={s.choice}><Text style={s.title}>← Previous</Text></Action>
+        <Action accessibilityLabel={`Next ${title} sample`} disabled={selected >= values.length - 1} onPress={() => choose(selected + 1)} style={s.choice}><Text style={s.title}>Next →</Text></Action>
+      </View>
+    </Card></Animated.View>
   );
 }
 

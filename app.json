@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "StillHere",
-    "slug": "stillhere",
+    "name": "GuardianCare",
+    "slug": "guardiancare",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -21,7 +21,18 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "stillhere",
-    "plugins": ["expo-router"]
+    "scheme": "guardiancare",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-audio",
+        {
+          "recordAudioAndroid": false,
+          "microphonePermission": false,
+          "enableBackgroundPlayback": false,
+          "enableBackgroundRecording": false
+        }
+      ]
+    ]
   }
 }

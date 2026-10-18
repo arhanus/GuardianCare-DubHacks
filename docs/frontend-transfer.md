@@ -42,3 +42,23 @@ On 2026-10-17 (America/Los_Angeles), Node 24.16.0 / npm 12.0.2:
 - Imported application files and lockfile match source commit exactly.
 
 No physical-device or interactive browser validation was performed.
+
+## Correction: full local app restored
+
+The remote feat/mobile-caregiver head did not contain the latest local work.
+A second audit found the complete app in stillhere-expo-fix on local branch
+feat/subscription-plans at 3acdbb5. The first import therefore omitted profile,
+settings, subscription, patient editor, personal care flows, SOS pairing,
+recipient preview, alarm audio, motion and subsequent UX fixes.
+
+This correction imports that local commit's src/, assets/, package manifest
+and lockfile, app config, design-system/, scripts/, feature documentation and
+Vercel config. The original local checkout is unchanged. No source histories
+are merged and no main/backend refs are updated. Source code and dependencies
+are preserved exactly from the complete local version.
+
+Correction validation (Node 24.16.0): npm ci, TypeScript, ESLint and all
+7 existing policy tests passed. Web export passed (2763 modules), including
+the SOS alarm audio. No interactive or physical-device testing was repeated.
+Native export also passed: iOS 3165 modules, Android 3301 modules. These are
+Metro/Hermes bundle checks, not installed-device execution.

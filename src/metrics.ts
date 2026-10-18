@@ -9,6 +9,7 @@ const profiles: Record<
   string,
   { pulse: number; temperature: number; movement: number }
 > = {
+  self: { pulse: 70, temperature: 33.6, movement: 1 },
   alex: { pulse: 72, temperature: 33.8, movement: 1 },
   jordan: { pulse: 66, temperature: 33.1, movement: 0.6 },
   sam: { pulse: 79, temperature: 34.2, movement: 0.8 },

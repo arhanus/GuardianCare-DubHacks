@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { Action as Pressable } from "../ui";
+import { useState } from "react";
 import {
   Animated,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowRight, Building2, UserRound } from "lucide-react-native";
 import { useSession, type AccountType } from "../session";
+import { useScreenMotion } from "../motion";
 
 const palette = {
   background: "#090909",
@@ -35,11 +36,8 @@ export default function Welcome() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [focused, setFocused] = useState<string | null>(null);
-  const [appear] = useState(() => new Animated.Value(0));
+  const entrance = useScreenMotion();
 
-  useEffect(() => {
-    Animated.timing(appear, { toValue: 1, duration: 620, useNativeDriver: true }).start();
-  }, [appear]);
 
   function continueWithEmail() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
@@ -99,12 +97,12 @@ export default function Welcome() {
             style={[
               styles.panel,
               desktop && styles.panelDesktop,
-              { opacity: appear, transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }] },
+              entrance,
             ]}
           >
-            <View style={styles.mark}><Text style={styles.markText}>SH</Text></View>
+            <View style={styles.mark}><Text style={styles.markText}>GC</Text></View>
             <Text accessibilityRole="header" style={styles.heading}>
-              {register ? "Create your account" : "Sign in to StillHere"}
+              {register ? "Create your account" : "Sign in to GuardianCare"}
             </Text>
             <Text style={styles.subtitle}>A clear view of the people in your care.</Text>
 
@@ -174,7 +172,7 @@ export default function Welcome() {
                 placeholder={type === "organization" ? "name@work-email.com" : "name@example.com"}
                 placeholderTextColor="#797979"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={value => { setEmail(value); setError(""); }}
                 onFocus={() => setFocused("email")}
                 onBlur={() => setFocused(null)}
                 style={[styles.input, focused === "email" && styles.inputFocused]}

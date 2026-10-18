@@ -1,6 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { ArrowUpRight, Radio, Users, Bell, WifiOff } from "lucide-react-native";
-import { colors, s } from "../../ui";
+import { Action as Pressable, colors, s } from "../../ui";
 import { AreaSparkline } from "./area-sparkline";
 
 // Adapted from the user-supplied RuixenStats layout for React Native.

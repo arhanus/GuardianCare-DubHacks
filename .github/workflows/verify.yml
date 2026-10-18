@@ -13,10 +13,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npx expo install --check
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build:web
+      - run: node --test scripts/*.test.mjs
+      - run: npm run build:native

@@ -1,70 +1,35 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { Pressable, Text } from "react-native";
-import { people } from "../../data";
+import { Text } from "react-native";
 import { useAlerts } from "../../store";
-import { Card, Heading, Screen, s } from "../../ui";
+import { Card, Heading, Screen, Action, StateCard, s } from "../../ui";
+import { useSession } from "../../session";
+import { useSOS } from "../../sos";
+import { eventStatus, eventDate } from "../../event-policy";
 export default function Incident() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { alerts, respond } = useAlerts();
-  const alert = alerts.find((a) => a.id === id);
-  if (!alert)
-    return (
-      <Screen>
-        <Heading
-          title="Incident not found"
-          subtitle="Return to Alerts to review a demo event."
-        />
-      </Screen>
-    );
-  const person = people.find((p) => p.id === alert.personId)!;
-  return (
-    <Screen>
-      <Heading
-        title={alert.title}
-        subtitle={`${person.name} · ${person.room}`}
-      />
-      <Card>
-        <Text style={[s.badge, !alert.responding && s.danger]}>
-          {alert.responding ? "● Responding" : "● Needs response"}
-        </Text>
-        <Text style={s.label}>
-          Event recorded at {alert.time} · Simulated event
-        </Text>
-        <Text style={s.title}>
-          {alert.type === "SOS"
-            ? "A request for a helping hand."
-            : "Check in on the connection."}
-        </Text>
-        <Text style={s.subtitle}>{alert.description}</Text>
-      </Card>
-      <Text style={s.section}>Response</Text>
-      <Text style={s.label}>
-        Acknowledging records that you’ve seen this event. It does not contact
-        the person, dispatch help, or resolve the incident.
-      </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ disabled: alert.responding }}
-        disabled={alert.responding}
-        style={[s.button, alert.responding && { opacity: 0.65 }]}
-        onPress={() => respond(alert.id)}
-      >
-        <Text style={s.buttonText}>
-          {alert.responding ? "You’re responding" : "I’m Responding"}
-        </Text>
-      </Pressable>
-      {alert.responding && (
-        <Text accessibilityLiveRegion="polite" style={s.badge}>
-          Acknowledged in this demo session.
-        </Text>
-      )}
-      <Pressable
-        accessibilityRole="button"
-        style={s.card}
-        onPress={() => router.push(`/person/${person.id}`)}
-      >
-        <Text style={s.badge}>View {person.name}’s device details →</Text>
-      </Pressable>
-    </Screen>
-  );
+ const { id } = useLocalSearchParams<{ id: string }>();
+ const { alerts, people, respond, close } = useAlerts();
+ const { signal, playing, stopAlarm } = useSOS();
+ const { session, caredName } = useSession();
+ const event = alerts.find(item => item.id === id);
+ if (!event) return <Screen><StateCard title="Event not found" description="This demo event may have been cleared when the session ended." action="Go to Alerts" onAction={() => router.replace("/alerts")} /></Screen>;
+ const person = ["self", "loved-one"].includes(event.personId) ? { id: event.personId, name: event.personId === "loved-one" ? caredName : session?.name ?? "You", room: "Personal bracelet" } : people.find(item => item.id === event.personId);
+ return <Screen>
+  <Heading title={event.title} subtitle={`${person?.name ?? "Unknown person"} · ${person?.room ?? ""}`} />
+  <Card>
+   <Text accessibilityLiveRegion="polite" style={[s.badge, event.status === "received" && s.danger]}>{eventStatus(event)}</Text>
+   <Text style={s.label}>{eventDate(event)} · Simulated event</Text>
+   <Text style={s.title}>{event.type === "SOS" ? "Check on this person." : "Review the device connection."}</Text>
+   <Text style={s.label}>{event.description}</Text>
+  </Card>
+  {signal?.id === event.id && playing && <Action onPress={stopAlarm} style={s.button}><Text style={s.buttonText}>Stop alarm</Text></Action>}
+  {event.status === "received" && <Action onPress={() => { if (signal?.id === event.id) stopAlarm(); respond(event.id); }} style={s.button}><Text style={s.buttonText}>Accept event</Text></Action>}
+  {event.status === "accepted" && <Card>
+   <Text style={s.title}>Help in progress</Text>
+   <Text style={s.label}>Check the person before closing. Closing records a demo workflow action; it does not dispatch help.</Text>
+   <Action onPress={() => { if (signal?.id === event.id) stopAlarm(); close(event.id); }} style={s.button}><Text style={s.buttonText}>Close event</Text></Action>
+  </Card>}
+  {event.status === "closed" && <Text style={s.badge}>Closed in this demo session.</Text>}
+  <Text style={s.label}>Accepting or closing an event does not contact anyone or confirm assistance.</Text>
+  <Action style={s.choice} onPress={() => router.push(["self", "loved-one"].includes(event.personId) ? "/" : `/person/${event.personId}`)}><Text style={s.title}>{["self", "loved-one"].includes(event.personId) ? "Back to personal space →" : "View patient profile →"}</Text></Action>
+ </Screen>;
 }

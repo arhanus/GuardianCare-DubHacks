@@ -1,0 +1,20 @@
+/* Keep interaction feedback consistent without animating layout or scroll positions. */
+[role="button"], [role="tab"], [role="switch"], input {
+  transition-property: background-color, border-color, color, opacity, box-shadow;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+[role="button"] svg, [role="tab"] svg {
+  transition: color 180ms ease-out, stroke 180ms ease-out;
+}
+[role="button"] span, [role="tab"] span { transition: color 180ms ease-out; }
+[role="button"]:focus-visible, [role="tab"]:focus-visible,
+[role="switch"]:focus-visible, input:focus-visible {
+  outline: 2px solid #177658;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  [role="button"], [role="tab"], [role="switch"], input,
+  [role="button"] svg, [role="tab"] svg,
+  [role="button"] span, [role="tab"] span { transition-duration: 0ms; }
+}
