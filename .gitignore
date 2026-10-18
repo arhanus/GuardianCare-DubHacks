@@ -20,3 +20,6 @@ android/
 *.key
 *.mobileprovision
 .claude/settings.local.json
+
+# Firmware credentials
+secrets.h
