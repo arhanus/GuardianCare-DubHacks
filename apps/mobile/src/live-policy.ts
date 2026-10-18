@@ -49,7 +49,7 @@ export function alertDescription(alert: Alert, latest?: LiveReading | null): str
     case "OFFLINE":
       return "The wristband stopped sending data. It may be out of Wi-Fi range or out of battery, so this resident is not being monitored. Check the wristband.";
     case "FALL":
-      return "An impact was followed by about 20 seconds without movement. The person may have fallen. Check on them now.";
+      return "An impact was followed by about 10 seconds without movement. The person may have fallen. Check on them now.";
     case "HR_HIGH":
     case "HR_LOW":
       return `Heart rate at rest stayed ${alert.detail === "HR_HIGH" ? "above" : "below"} the ${alert.severity === "warning" ? "warning" : "critical"} range${latest?.heartRateBpm != null ? ` (${latest.heartRateBpm} bpm)` : ""}. Demo thresholds, not a diagnosis.`;

@@ -110,4 +110,8 @@ export interface Store {
   insertReading(input: NewReading): Promise<{ reading: Reading; created: boolean }>;
   listReadings(patientId: string, limit: number): Promise<Reading[]>;
   latestReadings(patientIds: string[]): Promise<Record<string, Reading>>;
+  /** Caregiver phones that receive push notifications. Saving a known token is a no-op. */
+  savePushToken(token: string): Promise<void>;
+  deletePushToken(token: string): Promise<void>;
+  listPushTokens(): Promise<string[]>;
 }

@@ -83,7 +83,7 @@ export async function deviceRoutes(app: FastifyInstance, { store, config, engine
   async function processReading(
     device: DeviceRow & { patientId: string },
     input: Omit<NewReading, "deviceId" | "patientId">,
-    peak: { accelG?: number | null; jerkG?: number | null } | null,
+    peak: { accelG?: number | null; jerkG?: number | null; minAccelG?: number | null } | null,
     /** Optical sensor on skin? null = unknown (not reported). */
     contact: boolean | null = null,
   ) {
@@ -102,7 +102,9 @@ export async function deviceRoutes(app: FastifyInstance, { store, config, engine
     const fresh = observedAt === null || Math.abs(receivedMs - Date.parse(observedAt)) <= skewMs;
     const base = { patientId: device.patientId, deviceId: device.id, source: input.source as Source };
 
-    if (engines.wear.ingest(device.id, receivedMs, contact)) {
+    // Yellow warnings are off by default (WARNING_ALERTS_ENABLED): only red alerts are raised.
+    const warnings = config.WARNING_ALERTS_ENABLED;
+    if (warnings && engines.wear.ingest(device.id, receivedMs, contact)) {
       const alert = await raise(store.createSensorAlert({ ...base, type: "DEVICE_ALERT", detail: "NOT_WORN", severity: "warning" }));
       if (alert) app.log.info({ alertId: alert.id }, "wristband not-worn warning created");
     }
@@ -116,14 +118,16 @@ export async function deviceRoutes(app: FastifyInstance, { store, config, engine
         peakAccelG: peak?.accelG,
         peakJerkG: peak?.jerkG,
       });
-      impact = engines.motion.wasTripped(device.id);
-      if (moved) {
+      // A band lying on a table (optical sensor off skin) must not read as a fall.
+      impact = engines.motion.wasImpact(device.id) && contact !== false;
+      const freeFall = peak?.minAccelG != null && peak.minAccelG < config.FALL_FREEFALL_G;
+      if (moved && warnings) {
         const alert = await raise(store.createSensorAlert({ ...base, type: "MOTION_ALERT", detail: "SUDDEN_MOTION", severity: "warning" }));
-        if (alert) app.log.info({ alertId: alert.id }, "demo sudden-motion warning created");
+        if (alert) app.log.info({ alertId: alert.id, peak }, "demo sudden-motion warning created");
       }
-      if (engines.fall.ingest(device.id, receivedMs, reading.accelerationG, impact)) {
+      if (engines.fall.ingest(device.id, receivedMs, reading.accelerationG, impact, freeFall)) {
         const alert = await raise(store.createSensorAlert({ ...base, type: "MOTION_ALERT", detail: "FALL", severity: "urgent" }));
-        if (alert) app.log.info({ alertId: alert.id }, "demo fall alert created (impact + stillness)");
+        if (alert) app.log.info({ alertId: alert.id, confidence: engines.fall.lastConfidence(device.id) }, "demo fall alert created (impact + stillness)");
       }
     }
     const resting = engines.fall.resting(device.id, receivedMs);
@@ -133,7 +137,7 @@ export async function deviceRoutes(app: FastifyInstance, { store, config, engine
     // The warning rule only covers the band between the two ranges; beyond it the critical rule decides.
     const bpm = reading.heartRateBpm;
     const beyondCritical = bpm !== null && (bpm < config.DEMO_HR_CRITICAL_LOW_BPM || bpm > config.DEMO_HR_CRITICAL_HIGH_BPM);
-    const warning = engines.hr.ingest(device.id, beyondCritical ? { ...hrSample, heartRateBpm: null } : hrSample);
+    const warning = warnings ? engines.hr.ingest(device.id, beyondCritical ? { ...hrSample, heartRateBpm: null } : hrSample) : null;
     const hr = critical ?? warning;
     if (hr) {
       const severity = critical ? "urgent" : "warning";
@@ -141,7 +145,7 @@ export async function deviceRoutes(app: FastifyInstance, { store, config, engine
       if (alert) app.log.info({ alertId: alert.id, detail: hr, severity }, "demo HR alert created");
     }
 
-    if (fresh) {
+    if (fresh && warnings) {
       const temp = engines.temp.ingest(device.id, receivedMs, reading.skinTemperatureC);
       if (temp) {
         const detail = temp === "HIGH" ? "TEMP_HIGH" : "TEMP_LOW";
@@ -249,6 +253,14 @@ export async function deviceRoutes(app: FastifyInstance, { store, config, engine
       t.imu?.peak ?? null,
       t.heart?.status ? t.heart.status !== "NO_CONTACT" : null,
     );
-    return reply.status(201).send({ ok: true, receivedAt: reading.receivedAt });
+    // Wristband buzzes while this device has an unanswered red (urgent) alarm, SOS included.
+    let vibrate = false;
+    try {
+      const open = await store.listAlerts({ status: "open", limit: 100 });
+      vibrate = open.some((a) => a.deviceId === device.id && a.severity === "urgent");
+    } catch (err) {
+      app.log.error({ err }, "failed to check open alerts for wristband vibration");
+    }
+    return reply.status(201).send({ ok: true, receivedAt: reading.receivedAt, vibrate });
   });
 }

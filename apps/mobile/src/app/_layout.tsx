@@ -7,6 +7,7 @@ import { SOSProvider } from "../sos";
 import { LiveProvider } from "../live";
 import { ServerProvider } from "../server-url";
 import { ResidentProfilesProvider } from "../resident-profiles";
+import { PushRegistration } from "../push";
 import "../global.css";
 export default function Layout() {
   return (
@@ -21,7 +22,7 @@ function Navigation() {
     <AlertProvider
       key={session?.role ?? "signed-out"}
     >
-      <SOSProvider><StatusBar style={session ? "dark" : "light"} />
+      <SOSProvider><PushRegistration /><StatusBar style={session ? "dark" : "light"} />
       <Stack
         screenOptions={{
           headerTintColor: "#171717",

@@ -5,7 +5,7 @@ import { parseEnv, type Env } from "../src/config/env.js";
 import { createMemoryStore } from "../src/services/memory-store.js";
 
 const KEY = "test-device-key";
-const config: Env = parseEnv({ NODE_ENV: "test", DEVICE_API_KEY: KEY, REQUIRE_NURSE_AUTH: "false" });
+const config: Env = parseEnv({ NODE_ENV: "test", DEVICE_API_KEY: KEY, REQUIRE_NURSE_AUTH: "false", WARNING_ALERTS_ENABLED: "true" });
 
 async function setup(overrides: Partial<Env> = {}) {
   const store = createMemoryStore();
@@ -125,7 +125,7 @@ test("patients: offline before heartbeat, online after, alert count reflected", 
   p = await room();
   assert.equal(p.device.isOnline, true);
   assert.equal(p.activeAlertCount, 1);
-  assert.equal(p.displayName, "Patient C (Demo)");
+  assert.equal(p.displayName, "Eleanor Brooks");
 
   // stale: last seen 2 minutes ago -> offline
   await store.touchDevice("guardian-001", new Date(Date.now() - 120_000));

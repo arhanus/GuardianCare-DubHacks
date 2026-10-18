@@ -39,7 +39,7 @@ export function Screen({ children }: { children: React.ReactNode }) {
         <BackendBanner />
         <EscalationBanner />
         {children}
-        <Disclosure title="About this prototype"><Text style={s.label}>Values come live from a prototype wristband and are not a clinical measurement. Alarm thresholds are demo settings. Skin temperature is not core body temperature. Patients are synthetic. Sign-in and subscriptions are not connected to real accounts or payments.</Text></Disclosure>
+        <Disclosure title="About this prototype"><Text style={s.label}>Values come live from a prototype wristband and are not a clinical measurement. Alarm thresholds are demo settings. Skin temperature is not core body temperature. Residents are synthetic. Sign-in and subscriptions are not connected to real accounts or payments.</Text></Disclosure>
       </ScrollView></Animated.View></KeyboardAvoidingView>
     </SafeAreaView>
   );

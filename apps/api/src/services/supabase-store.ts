@@ -195,6 +195,18 @@ export function createSupabaseStore(db: SupabaseClient): Store {
       }));
     },
 
+    async savePushToken(token) {
+      check(await db.from("push_tokens").upsert({ token, updated_at: new Date().toISOString() }, { onConflict: "token" }));
+    },
+
+    async deletePushToken(token) {
+      check(await db.from("push_tokens").delete().eq("token", token));
+    },
+
+    async listPushTokens() {
+      return check(await db.from("push_tokens").select("token").returns<{ token: string }[]>()).map((r) => r.token);
+    },
+
     async patientExists(id) {
       const row = check(await db.from("patients").select("id").eq("id", id).maybeSingle<{ id: string }>());
       return row !== null;

@@ -14,6 +14,7 @@ const config: Env = parseEnv({
   NODE_ENV: "test",
   DEVICE_API_KEY: KEY,
   REQUIRE_NURSE_AUTH: "false",
+  WARNING_ALERTS_ENABLED: "true",
   MOTION_COOLDOWN_SECONDS: "0",
   DEMO_TEMP_DURATION_SECONDS: "1",
   DEMO_TEMP_MIN_SAMPLES: "2",
@@ -104,7 +105,7 @@ test("a big y-axis jump raises one MOTION_ALERT warning", async () => {
 
 test("firmware peak jerk between snapshots also raises a motion alert", async () => {
   const { app, store } = await setup();
-  await post(app, snapshot({ imu: { valid: true, motionDetected: true, accel: { x: 0, y: 0, z: 1 }, gyro: null, peak: { accelG: 1.0, jerkG: 2.2, gyroDps: 10 } } }));
+  await post(app, snapshot({ imu: { valid: true, motionDetected: true, accel: { x: 0, y: 0, z: 1 }, gyro: null, peak: { accelG: 1.0, jerkG: 3.5, gyroDps: 10 } } }));
   assert.equal((await store.listAlerts({ status: "open", limit: 10 })).length, 1);
   await app.close();
 });
@@ -175,7 +176,7 @@ test("live hub receives readings and alerts over WebSocket", async () => {
       const msg = JSON.parse(String(e.data));
       seen.push(msg.type);
       if (msg.type === "hello") {
-        void post(app, snapshot({ imu: { valid: true, motionDetected: true, accel: { x: 0, y: 1.5, z: 1 }, gyro: null } })).catch(reject);
+        void post(app, snapshot({ imu: { valid: true, motionDetected: true, accel: { x: 0, y: 4, z: 1 }, gyro: null } })).catch(reject);
       }
       if (seen.includes("reading") && seen.includes("alert")) resolve();
     };
@@ -206,8 +207,8 @@ test("FallEngine: impact then stillness is a fall; moving after the impact is no
   assert.equal(f.ingest("d", 0, still, false), false);
   assert.equal(f.ingest("d", 1000, { x: 0, y: 1.5, z: 1 }, true), false); // impact
   // The arm settling back at 2 s is the last movement (within the grace period, so no cancel).
-  for (let t = 2000; t < 22_000; t += 1000) assert.equal(f.ingest("d", t, still, false), false);
-  assert.equal(f.ingest("d", 22_000, still, false), true); // 20 s without movement
+  for (let t = 2000; t < 21_000; t += 1000) assert.equal(f.ingest("d", t, still, false), false);
+  assert.equal(f.ingest("d", 21_000, still, false), true); // 20 s after the impact
   const g = new FallEngine(rule);
   g.ingest("d", 0, still, false);
   g.ingest("d", 1000, { x: 0, y: 1.5, z: 1 }, true);
@@ -238,7 +239,7 @@ test("TempBaselineEngine learns the personal baseline first", () => {
 });
 
 test("critical heart rate (urgent) at rest; warning band stays warning", async () => {
-  const fast = parseEnv({ NODE_ENV: "test", DEVICE_API_KEY: KEY, REQUIRE_NURSE_AUTH: "false", DEMO_HR_DURATION_SECONDS: "1",
+  const fast = parseEnv({ NODE_ENV: "test", DEVICE_API_KEY: KEY, REQUIRE_NURSE_AUTH: "false", WARNING_ALERTS_ENABLED: "true", DEMO_HR_DURATION_SECONDS: "1",
     DEMO_HR_CRITICAL_DURATION_SECONDS: "1", DEMO_HR_MIN_SAMPLES: "2", REST_SECONDS: "0" });
   const store = createMemoryStore();
   const app = await buildApp({ store, config: fast });
@@ -264,7 +265,7 @@ test("critical heart rate (urgent) at rest; warning band stays warning", async (
 });
 
 test("sensor off skin for NOT_WORN_SECONDS raises one DEVICE_ALERT warning; contact resets it", async () => {
-  const cfg = parseEnv({ NODE_ENV: "test", DEVICE_API_KEY: KEY, REQUIRE_NURSE_AUTH: "false", NOT_WORN_SECONDS: "1" });
+  const cfg = parseEnv({ NODE_ENV: "test", DEVICE_API_KEY: KEY, REQUIRE_NURSE_AUTH: "false", WARNING_ALERTS_ENABLED: "true", NOT_WORN_SECONDS: "1" });
   const store = createMemoryStore();
   const app = await buildApp({ store, config: cfg });
   const off = { valid: false, bpm: null, status: "NO_CONTACT" };
@@ -327,4 +328,68 @@ test("resolve closes an alert with a note, is idempotent, validates the note", a
   assert.equal((await store.listAlerts({ status: "open", limit: 5 })).length, 0);
   assert.equal((await app.inject({ method: "PATCH", url: "/api/alerts/11111111-1111-4111-8111-999999999999/resolve", payload: { note: "x" } })).statusCode, 404);
   await app.close();
+});
+
+test("FallEngine: free fall + lying down (orientation change) gives confidence 3 and alerts after stillMs", () => {
+  const f = new FallEngine({ moveDeltaG: 0.15, moveMagnitudeG: 0.3, restMs: 10_000, stillMs: 10_000, graceMs: 3000, cooldownMs: 0, getUpDeltaG: 0.4, orientationDeg: 45 });
+  const upright = { x: 0, y: 0, z: 1 };
+  const lying = { x: 1, y: 0, z: 0 };
+  f.ingest("d", 0, upright, false);
+  f.ingest("d", 1000, { x: 0, y: 1.5, z: 1 }, true, true); // free fall then impact
+  for (let t = 2000; t < 11_000; t += 1000) assert.equal(f.ingest("d", t, lying, false), false);
+  assert.equal(f.ingest("d", 12_000, lying, false), true); // 10 s after the last movement
+  assert.equal(f.lastConfidence("d"), 3);
+});
+
+test("FallEngine: small movements after the impact are ignored; a noticeable one cancels", () => {
+  const rule = { moveDeltaG: 0.15, moveMagnitudeG: 0.3, restMs: 10_000, stillMs: 10_000, graceMs: 3000, cooldownMs: 0, getUpDeltaG: 0.4 };
+  const still = { x: 0, y: 0, z: 1 };
+  const fidget = (t: number) => ({ x: 0.05 + (t % 2000 === 0 ? 0.2 : 0), y: 0, z: 1 }); // hand twitching, 0.2 g
+  const f = new FallEngine(rule);
+  f.ingest("d", 0, still, false);
+  f.ingest("d", 1000, { x: 0, y: 1.5, z: 1 }, true);
+  for (let t = 2000; t < 11_000; t += 1000) assert.equal(f.ingest("d", t, fidget(t), false), false);
+  assert.equal(f.ingest("d", 11_000, fidget(11_000), false), true); // fidgeting does not stop the fall
+  const g = new FallEngine(rule);
+  g.ingest("d", 0, still, false);
+  g.ingest("d", 1000, { x: 0, y: 1.5, z: 1 }, true);
+  for (let t = 2000; t < 7000; t += 1000) g.ingest("d", t, still, false);
+  assert.equal(g.ingest("d", 7000, { x: 0.6, y: 0, z: 1 }, false), false); // sits up / walks away
+  for (let t = 8000; t <= 30_000; t += 1000) assert.equal(g.ingest("d", t, { x: 0.6, y: 0, z: 1 }, false), false);
+});
+
+test("MotionEngine.wasImpact ignores slow axis changes when firmware peaks are present", () => {
+  const m = new MotionEngine({ axisDeltaG: 0.6, jerkG: 3, impactG: 3.5, cooldownMs: 0 });
+  m.ingest("d", { atMs: 0, accel: { x: 0, y: 0, z: 1 }, peakAccelG: 1.1, peakJerkG: 0.2 });
+  m.ingest("d", { atMs: 1000, accel: { x: 0.9, y: 0, z: 0.4 }, peakAccelG: 1.2, peakJerkG: 0.3 }); // wrist turn
+  assert.equal(m.wasTripped("d"), false); // axis change alone is not enough when peaks are reported
+  assert.equal(m.wasImpact("d"), false);
+  m.ingest("d", { atMs: 2000, accel: { x: 0, y: 0, z: 1 }, peakAccelG: 4.1, peakJerkG: 3 });
+  assert.equal(m.wasImpact("d"), true);
+});
+
+test("by default no yellow warning is raised, even for a big movement", async () => {
+  const store = createMemoryStore();
+  const app = await buildApp({ store, config: parseEnv({ NODE_ENV: "test", DEVICE_API_KEY: KEY, REQUIRE_NURSE_AUTH: "false" }) });
+  await post(app, snapshot());
+  await post(app, snapshot({ imu: { valid: true, motionDetected: true, accel: { x: 0, y: 4, z: 1 }, gyro: null, peak: { accelG: 6, jerkG: 5, gyroDps: 300, minAccelG: 0.1 } } }));
+  assert.equal((await store.listAlerts({ status: "all", limit: 10 })).length, 0);
+});
+
+test("FallEngine: impact + stillness without free fall or orientation change is not a fall when minConfidence is 2", () => {
+  const f = new FallEngine({ moveDeltaG: 0.15, moveMagnitudeG: 0.3, restMs: 10_000, stillMs: 20_000, graceMs: 3000, cooldownMs: 0, minConfidence: 2, windowMs: 45_000 });
+  const still = { x: 0, y: 0, z: 1 };
+  f.ingest("d", 0, still, false);
+  f.ingest("d", 1000, { x: 0, y: 1.5, z: 1 }, true); // hand wave, then the hand rests in the same position
+  for (let t = 2000; t <= 40_000; t += 1000) assert.equal(f.ingest("d", t, still, false), false);
+});
+
+test("FallEngine: an impact never confirmed within the window is forgotten", () => {
+  const f = new FallEngine({ moveDeltaG: 0.15, moveMagnitudeG: 0.3, restMs: 10_000, stillMs: 10_000, graceMs: 3000, cooldownMs: 0, minConfidence: 2, windowMs: 30_000 });
+  const still = { x: 0, y: 0, z: 1 };
+  f.ingest("d", 0, still, false);
+  f.ingest("d", 1000, { x: 0, y: 1.5, z: 1 }, true);
+  for (let t = 2000; t < 32_000; t += 1000) assert.equal(f.ingest("d", t, still, false), false); // no free fall, no orientation change
+  // Lying down only after the window has passed no longer counts.
+  for (let t = 32_000; t <= 60_000; t += 1000) assert.equal(f.ingest("d", t, { x: 1, y: 0, z: 0 }, false), false);
 });

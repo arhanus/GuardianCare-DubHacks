@@ -16,6 +16,8 @@ import { TempBaselineEngine } from "./services/temp-baseline-engine.js";
 import { FallEngine } from "./services/fall-engine.js";
 import { WearEngine } from "./services/wear-engine.js";
 import { OfflineWatch } from "./services/offline-watch.js";
+import { PushService } from "./services/push.js";
+import { pushRoutes } from "./routes/push.js";
 import { createNurseVerifier, type NurseVerifier } from "./services/nurse-auth.js";
 import type { Store } from "./services/store.js";
 
@@ -52,6 +54,11 @@ export async function buildApp(opts: { store?: Store; config?: Env; verifier?: N
   await app.register(healthRoutes);
   const verifier = opts.verifier ?? createNurseVerifier(config, app.log);
   const hub = new LiveHub();
+  // Every new alert also goes out as a push notification (reaches phones with the app closed).
+  const push = new PushService(store, app.log);
+  hub.subscribe((msg) => {
+    if (msg.type === "alert" && config.NODE_ENV !== "test") void push.notifyAlert(msg.alert);
+  });
   const engines = {
     hr: new HrEngine({
       lowBpm: config.DEMO_HR_LOW_BPM,
@@ -87,6 +94,10 @@ export async function buildApp(opts: { store?: Store; config?: Env; verifier?: N
       stillMs: config.FALL_STILL_SECONDS * 1000,
       graceMs: 3000,
       cooldownMs: config.MOTION_COOLDOWN_SECONDS * 1000,
+      getUpDeltaG: config.FALL_GET_UP_DELTA_G,
+      orientationDeg: config.FALL_ORIENTATION_DEG,
+      minConfidence: config.FALL_MIN_CONFIDENCE,
+      windowMs: config.FALL_WINDOW_SECONDS * 1000,
     }),
     wear: new WearEngine({ notWornMs: config.NOT_WORN_SECONDS * 1000 }),
   };
@@ -94,7 +105,7 @@ export async function buildApp(opts: { store?: Store; config?: Env; verifier?: N
     store, hub, offlineMs: config.OFFLINE_SECONDS * 1000,
     onError: (err) => app.log.error({ err }, "offline check failed"),
   });
-  if (config.NODE_ENV !== "test") {
+  if (config.NODE_ENV !== "test" && config.WARNING_ALERTS_ENABLED) {
     const timer = setInterval(() => void offlineWatch.check(Date.now()), 15_000);
     timer.unref();
     app.addHook("onClose", async () => clearInterval(timer));
@@ -103,6 +114,7 @@ export async function buildApp(opts: { store?: Store; config?: Env; verifier?: N
   await app.register(liveRoutes, { config, verifier, hub });
   await app.register(deviceRoutes, { store, config, engines, hub });
   await app.register(alertRoutes, { store, config, verifier, hub });
+  await app.register(pushRoutes, { store, config, verifier });
   await app.register(patientRoutes, { store, config, verifier, hub });
 
   // Exposed for tests: run the offline check with a chosen clock.

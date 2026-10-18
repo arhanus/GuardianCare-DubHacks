@@ -21,6 +21,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     const res = await fetch(`${getApiUrl()}${path}`, { ...init, signal: controller.signal, headers: { "content-type": "application/json", ...init?.headers } });
     if (!res.ok) throw new ApiError(res.status, (await res.text().catch(() => "")).slice(0, 120));
+    if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
   } finally {
     clearTimeout(timer);
@@ -33,6 +34,10 @@ export const getReadings = (patientId: string, limit = 60) => request<LiveReadin
 export const acknowledgeAlert = (alertId: string) => request<Alert>(`/api/alerts/${alertId}/acknowledge`, { method: "PATCH", body: "{}" });
 export const resolveAlert = (alertId: string, note: string) => request<Alert>(`/api/alerts/${alertId}/resolve`, { method: "PATCH", body: JSON.stringify({ note }) });
 export const sendSOS = (patientId: string, eventId: string) => request<{ alert: Alert; duplicate: boolean }>(`/api/patients/${patientId}/sos`, { method: "POST", body: JSON.stringify({ eventId }) });
+
+/** Caregiver phones register their Expo push token so alerts reach them with the app closed. */
+export const registerPushToken = (token: string) => request<void>("/api/push-tokens", { method: "POST", body: JSON.stringify({ token }) });
+export const unregisterPushToken = (token: string) => request<void>("/api/push-tokens", { method: "DELETE", body: JSON.stringify({ token }) });
 
 /** ws:// (or wss://) URL of the live stream, derived from the API base URL. */
 export const liveUrl = () => `${getApiUrl().replace(/^http/, "ws")}/api/live`;

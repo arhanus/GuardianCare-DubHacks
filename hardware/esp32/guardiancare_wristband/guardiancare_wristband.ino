@@ -71,6 +71,12 @@ float temperatureC = 0;
 
 bool motorOn = false;
 uint32_t motorStartedMs = 0;
+// Set by the sender task from the server's answer: the wristband has an unanswered red alarm.
+volatile bool serverVibrate = false;
+volatile uint32_t serverVibrateAtMs = 0;  // when the server last answered
+bool alarmDriving = false;                // the motor is currently driven by the alarm, not the serial command
+constexpr uint32_t ALARM_PULSE_MS = 500;
+constexpr uint32_t ALARM_STALE_MS = 10000;  // no answer for this long: stop buzzing rather than buzz forever
 uint32_t lastIMUMs = 0;
 uint32_t motionBlockUntilMs = 0;
 
@@ -254,6 +260,19 @@ void stopMotor() {
 }
 
 void updateMotor() {
+  const uint32_t now = millis();
+  if (serverVibrate && (uint32_t)(now - serverVibrateAtMs) < ALARM_STALE_MS) {
+    // Pulse 500 ms on / 500 ms off until a caregiver accepts the alarm.
+    const bool on = (now / ALARM_PULSE_MS) % 2 == 0;
+    digitalWrite(MOTOR_PIN, on ? HIGH : LOW);
+    motorOn = on;
+    alarmDriving = true;
+    return;
+  }
+  if (alarmDriving) {
+    stopMotor();
+    alarmDriving = false;
+  }
   if (motorOn && (uint32_t)(millis() - motorStartedMs) >= 2000) {
     stopMotor();
     Serial0.println("# VIBRATION STOPPED");
@@ -654,6 +673,12 @@ void senderTask(void *) {
     http.addHeader("Content-Type", "application/json");
     http.addHeader("x-device-key", API_KEY);
     const int code = http.POST((uint8_t *)body, strlen(body));
+    if (code >= 200 && code < 300) {
+      // Small JSON answer: {"ok":true,"receivedAt":"...","vibrate":true|false}
+      const String answer = http.getString();
+      serverVibrate = answer.indexOf("\"vibrate\":true") >= 0;
+      serverVibrateAtMs = millis();
+    }
     http.end();
     lastHttpCode = code;
     if (code >= 200 && code < 300) sentOk++; else sentFailed++;
@@ -800,4 +825,3 @@ void loop() {
   }
   delay(1);
 }
-

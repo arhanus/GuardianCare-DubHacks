@@ -14,7 +14,7 @@ const nurse = { authorization: "Bearer nurse-token" };
 const PATIENT_C = "11111111-1111-4111-8111-111111111203";
 
 async function setup(raw: Record<string, string> = {}) {
-  const config: Env = parseEnv({ NODE_ENV: "test", DEVICE_API_KEY: KEY, ...raw });
+  const config: Env = parseEnv({ NODE_ENV: "test", DEVICE_API_KEY: KEY, WARNING_ALERTS_ENABLED: "true", ...raw });
   const store = createMemoryStore();
   const app = await buildApp({ store, config, verifier });
   return { app, store };

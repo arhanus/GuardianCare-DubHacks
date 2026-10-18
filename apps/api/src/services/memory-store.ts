@@ -6,15 +6,16 @@ export const DEMO_PATIENT_C_ID = "11111111-1111-4111-8111-111111111203";
 /** In-memory store for tests and for running without Supabase credentials. Same seed as the SQL seed. */
 export function createMemoryStore(deviceId = "guardian-001"): Store {
   const patients = [
-    { id: "11111111-1111-4111-8111-111111111201", displayName: "Patient A (Demo)", roomNumber: "201" },
-    { id: "11111111-1111-4111-8111-111111111202", displayName: "Patient B (Demo)", roomNumber: "202" },
-    { id: DEMO_PATIENT_C_ID, displayName: "Patient C (Demo)", roomNumber: "203" },
+    { id: "11111111-1111-4111-8111-111111111201", displayName: "Margaret Collins", roomNumber: "201" },
+    { id: "11111111-1111-4111-8111-111111111202", displayName: "Robert Hayes", roomNumber: "202" },
+    { id: DEMO_PATIENT_C_ID, displayName: "Eleanor Brooks", roomNumber: "203" },
   ];
   const devices = new Map<string, DeviceRow>([
     [deviceId, { id: deviceId, patientId: DEMO_PATIENT_C_ID, lastSeenAt: null }],
   ]);
   const alerts: Alert[] = [];
   const readings: Reading[] = [];
+  const pushTokens = new Set<string>();
 
   const newAlert = (a: Partial<Alert> & Pick<Alert, "patientId" | "deviceId" | "type" | "severity" | "source">): Alert => ({
     id: randomUUID(),
@@ -90,6 +91,15 @@ export function createMemoryStore(deviceId = "guardian-001"): Store {
     },
     async patientExists(id) {
       return patients.some((p) => p.id === id);
+    },
+    async savePushToken(token) {
+      pushTokens.add(token);
+    },
+    async deletePushToken(token) {
+      pushTokens.delete(token);
+    },
+    async listPushTokens() {
+      return [...pushTokens];
     },
     async countOpenAlertsByPatient() {
       const out: Record<string, number> = {};

@@ -28,7 +28,7 @@ export const telemetrySchema = z.object({
       gyro: z.object({ x: num, y: num, z: num }).nullish(),
       // Largest values seen since the previous snapshot (impacts between 1 s samples).
       peak: z
-        .object({ accelG: numOrNull, jerkG: numOrNull, gyroDps: numOrNull })
+        .object({ accelG: numOrNull, jerkG: numOrNull, gyroDps: numOrNull, minAccelG: numOrNull })
         .nullish(),
     })
     .optional(),
