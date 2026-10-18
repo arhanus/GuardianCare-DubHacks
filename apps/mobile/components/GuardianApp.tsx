@@ -39,7 +39,7 @@ export default function GuardianApp() {
   const Stat = ({ value, label, color }: { value: string; label: string; color: string }) => <View style={s.stat}><Text style={[s.statValue, { color }]}>{value}</Text><Text style={s.statLabel}>{label}</Text></View>;
   return <SafeAreaView style={s.safe}>
     <StatusBar barStyle="dark-content" />
-    <View style={s.header}><Text style={s.logo}>still<Text style={{ color: C.blue }}>here</Text><Text style={{ color: '#3BB8A1' }}>.</Text></Text><View style={s.avatar}><Text style={s.avatarText}>RN</Text></View></View>
+    <View style={s.header}><Text style={s.logo}>guardian<Text style={{ color: C.blue }}>care</Text><Text style={{ color: '#3BB8A1' }}>.</Text></Text><View style={s.avatar}><Text style={s.avatarText}>RN</Text></View></View>
     <ScrollView key={screen} style={{ flex: 1 }} contentContainerStyle={s.content}>
       {screen === 'home' && <>
         <Text style={s.title}>Good morning, Riley</Text><Text style={s.subtitle}>Saturday, October 17 · Care overview</Text>
