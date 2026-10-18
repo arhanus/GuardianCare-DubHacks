@@ -1,0 +1,22 @@
+name: Verify frontend
+on:
+  push:
+    branches: [frontend]
+  pull_request:
+    branches: [frontend]
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx expo install --check
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build:web
