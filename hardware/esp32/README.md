@@ -21,14 +21,21 @@ Current Ardunio Code:
 #include <DallasTemperature.h>
 #include <math.h>
 
+#include <Arduino.h>
+#include <Wire.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <MAX30105.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <math.h>
+
 // ==================== Network settings ====================
-// Kendi bilgilerinizle degistirin.
 
 const char *WIFI_SSID     = "kim_guest";
 const char *WIFI_PASSWORD = "It.passes.through";
-
-// Ornek: "http://192.168.1.50:3000/api/telemetry"
-const char *SERVER_URL = "http://192.168.1.50:3000/api/telemetry";
+//ornek
+const char *SERVER_URL = "http://192.168.1.122:3000/api/telemetry"; //192.168.1.122 benim gercek ip adresim.
 
 // Bos birakilirsa X-API-Key basligi gonderilmez.
 const char *API_KEY = "";
